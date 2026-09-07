@@ -1,14 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"github.com/HasselAssel/Fettsack/api"
 )
 
 func main() {
-	db_handle, err := api.GetDbHandle("./dev/test.sqlite")
+	db_handle, err := api.GetDbHandleFromEnv()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -32,14 +31,6 @@ func main() {
 
 	mux.HandleFunc("GET /api/v1/food/food", api.GetFoods)
 	mux.HandleFunc("GET /api/v1/food/log", api.GetLogs)
-
-	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		json.NewEncoder(w).Encode(map[string]string{
-			"status": "ok",
-		})
-	})
 
 	log.Println("starting server running at http://localhost:8910 ...")
 	log.Fatal(http.ListenAndServe("localhost:8910", mux))
