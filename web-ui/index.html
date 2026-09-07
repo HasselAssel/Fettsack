@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Food Tracker</h1>
+      <p class="muted">Track foods and daily intake.</p>
+    </div>
+    <nav class="tabs" aria-label="Main navigation">
+      <button class="tab-button active" data-view="day-view">Day</button>
+      <button class="tab-button" data-view="week-view">Week</button>
+      <button class="tab-button" data-view="month-view">Month</button>
+      <button class="tab-button" data-view="foods-view">Foods</button>
+      <a class="tab-link" href="analytics.html">Graphs</a>
+    </nav>
+  </header>
+
+  <main class="app-shell">
+    <section id="day-view" class="view active">
+      <div class="page-header">
+        <div><h2>Daily log</h2><p class="muted">Browse a day and see what you ate.</p></div>
+        <div class="date-controls">
+          <button id="previous-day" class="secondary-button icon-button" type="button">←</button>
+          <input id="selected-date" type="date" />
+          <button id="next-day" class="secondary-button icon-button" type="button">→</button>
+          <button id="today-button" class="secondary-button" type="button">Today</button>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        <article class="summary-card"><span>Calories</span><strong id="summary-calories">0 kcal</strong></article>
+        <article class="summary-card"><span>Protein</span><strong id="summary-protein">0 g</strong></article>
+        <article class="summary-card"><span>Carbs</span><strong id="summary-carbs">0 g</strong></article>
+        <article class="summary-card"><span>Fat</span><strong id="summary-fat">0 g</strong></article>
+      </div>
+
+      <div class="content-grid">
+        <section class="panel">
+          <div class="panel-header"><div><h3 id="day-title">Today</h3><p class="muted">Food entries for this day.</p></div></div>
+          <div id="day-log-list" class="log-list"></div>
+        </section>
+
+        <aside class="panel">
+          <div class="panel-header"><div><h3>Add to day</h3><p class="muted">Log a saved food or create one on the fly.</p></div></div>
+
+          <div class="segmented-control">
+            <button id="existing-food-mode" class="segment active" type="button">Saved food</button>
+            <button id="new-food-mode" class="segment" type="button">New food</button>
+          </div>
+
+          <form id="add-log-form" class="form-stack">
+            <div id="existing-food-fields">
+              <label>Food<select id="log-food-id" required></select></label>
+            </div>
+
+            <div id="new-food-fields" class="hidden form-stack">
+              <label>Name<input id="quick-food-name" type="text" /></label>
+              <div class="form-row">
+                <label>Brand<input id="quick-food-brand" type="text" /></label>
+                <label>Barcode<input id="quick-food-barcode" type="text" /></label>
+              </div>
+              <div class="form-row">
+                <label>Calories / 100 g<input id="quick-food-calories" type="number" min="0" step="0.1" /></label>
+                <label>Protein / 100 g<input id="quick-food-protein" type="number" min="0" step="0.1" /></label>
+              </div>
+              <div class="form-row">
+                <label>Carbs / 100 g<input id="quick-food-carbs" type="number" min="0" step="0.1" /></label>
+                <label>Fat / 100 g<input id="quick-food-fat" type="number" min="0" step="0.1" /></label>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label>Grams<input id="log-grams" type="number" min="0.1" step="0.1" required /></label>
+              <label>Time<input id="log-time" type="time" required /></label>
+            </div>
+
+            <button id="add-log-submit" class="primary-button" type="submit">Add log</button>
+          </form>
+        </aside>
+      </div>
+    </section>
+
+    <section id="week-view" class="view">
+      <div class="page-header">
+        <div><h2>Week</h2><p class="muted" id="week-range-label">Weekly intake overview.</p></div>
+        <div class="date-controls">
+          <button id="previous-week" class="secondary-button icon-button" type="button">←</button>
+          <button id="current-week" class="secondary-button" type="button">This week</button>
+          <button id="next-week" class="secondary-button icon-button" type="button">→</button>
+        </div>
+      </div>
+      <div id="week-summary" class="overview-summary"></div>
+      <section class="panel">
+        <div class="panel-header"><div><h3>Daily intake</h3><p class="muted">Totals for each day of the selected week.</p></div></div>
+        <div id="week-days" class="period-list"></div>
+      </section>
+    </section>
+
+    <section id="month-view" class="view">
+      <div class="page-header">
+        <div><h2>Month</h2><p class="muted" id="month-range-label">Monthly intake overview.</p></div>
+        <div class="date-controls">
+          <button id="previous-month" class="secondary-button icon-button" type="button">←</button>
+          <button id="current-month" class="secondary-button" type="button">This month</button>
+          <button id="next-month" class="secondary-button icon-button" type="button">→</button>
+        </div>
+      </div>
+      <div id="month-summary" class="overview-summary"></div>
+      <section class="panel">
+        <div class="panel-header"><div><h3>Days</h3><p class="muted">A compact overview of each day in the selected month.</p></div></div>
+        <div id="month-days" class="month-grid"></div>
+      </section>
+    </section>
+
+    <section id="foods-view" class="view">
+      <div class="page-header"><div><h2>Foods</h2><p class="muted">Manage foods you can reuse in your daily log.</p></div></div>
+      <div class="content-grid">
+        <section class="panel">
+          <div class="panel-header"><div><h3>Saved foods</h3><p class="muted">All foods currently stored by the backend.</p></div></div>
+          <div id="foods-list" class="food-list"></div>
+        </section>
+        <aside class="panel">
+          <div class="panel-header"><div><h3>Add food</h3><p class="muted">Nutrition values are per 100 g.</p></div></div>
+          <form id="add-food-form" class="form-stack">
+            <label>Name<input id="food-name" type="text" required /></label>
+            <div class="form-row"><label>Brand<input id="food-brand" type="text" /></label><label>Barcode<input id="food-barcode" type="text" /></label></div>
+            <div class="form-row"><label>Calories<input id="food-calories" type="number" min="0" step="0.1" required /></label><label>Protein<input id="food-protein" type="number" min="0" step="0.1" required /></label></div>
+            <div class="form-row"><label>Carbs<input id="food-carbs" type="number" min="0" step="0.1" required /></label><label>Fat<input id="food-fat" type="number" min="0" step="0.1" required /></label></div>
+            <button class="primary-button" type="submit">Add food</button>
+          </form>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+package api
+
+import (
+	"net/http"
+	"database/sql"
+	"github.com/HasselAssel/Fettsack/api/models"
+	"github.com/HasselAssel/Fettsack/api/logic"
+)
+
+func Init(db *sql.DB) {
+	logic.EnsureFoodTables(db)
+}
+
+type Api struct {
+	DB_handle *sql.DB
+}
+
+func (api Api) CleanUp() {
+	api.DB_handle.Close()
+}
+
+func (api Api) GetFoods(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[struct{}](w ,r)
+	if err != nil {return}
+
+	foods, err := logic.GetFoodsFromDB(api.DB_handle, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusInternalServerError, "failed to get foods")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusOK, foods)
+}
+
+func (api Api) GetLogs(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[struct{}](w ,r)
+	if err != nil {return}
+
+	logs, err := logic.GetLogsFromDB(api.DB_handle, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusInternalServerError, "failed to get logs")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusOK, logs)
+}
+
+func (api Api) AddFood(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.Food](w ,r)
+	if err != nil {return}
+
+	id, err := logic.AddFoodToBD(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add food")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusCreated, map[string]int64{
+		"id": id,
+	})
+}
+
+func (api Api) RemoveFood(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.FoodId](w ,r)
+	if err != nil {return}
+
+	err = logic.RemoveFoodFromDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to remove food")
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
+}
+
+func (api Api) AddFoodLog(w http.ResponseWriter, r *http.Request)  {
+	requestInfo, err := processRequestInfo[models.FoodLog](w ,r)
+	if err != nil {return}
+
+	id, err := logic.AddFoodLogToDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add log")
+		return
+	}
+	
+	httpWriteJSON(w, http.StatusCreated, map[string]int64{
+		"id": id,
+	})
+}
+
+func (api Api) RemoveFoodLog(w http.ResponseWriter, r *http.Request)  {
+	requestInfo, err := processRequestInfo[models.FoodLogId](w ,r)
+	if err != nil {return}
+
+	err = logic.RemoveFoodLogFromDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to remove food")
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
+}
+
+func (api Api) AddFoodAndLog(w http.ResponseWriter, r *http.Request)  {
+	requestInfo, err := processRequestInfo[models.FoodAndLog](w ,r)
+	if err != nil {return}
+	
+	food_id, err := logic.AddFoodToBD(api.DB_handle, *requestInfo.Payload.Food, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add food")
+		return
+	}
+
+	requestInfo.Payload.Log.Food_id = &food_id
+
+	log_id, err := logic.AddFoodLogToDB(api.DB_handle, *requestInfo.Payload.Log, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "added food but failed to add log")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusCreated, map[string]int64{
+		"food_id": food_id,
+		"log_id": log_id,
+	})
+}
