@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/HasselAssel/Fettsack/api/logic"
@@ -12,8 +13,17 @@ type Api struct {
 	DB_handle *sql.DB
 }
 
-func (api Api) Init() {
-	logic.EnsureFoodTables(api.DB_handle)
+func (api Api) Init() error {
+	var err error
+	err = logic.EnsureFoodTables(api.DB_handle)
+	if err != nil {
+		return fmt.Errorf("API INIT ERROR: EnsureFoodTables %w", err)
+	}
+	err = logic.EnsureWeightTables(api.DB_handle)
+	if err != nil {
+		return fmt.Errorf("API INIT ERROR: EnsureWeightTables %w", err)
+	}
+	return nil
 }
 
 func (api Api) CleanUp() {
@@ -35,15 +45,30 @@ func (api Api) GetFoods(w http.ResponseWriter, r *http.Request) {
 	httpWriteJSON(w, http.StatusOK, foods)
 }
 
-func (api Api) GetLogs(w http.ResponseWriter, r *http.Request) {
+func (api Api) GetFoodLogs(w http.ResponseWriter, r *http.Request) {
 	requestInfo, err := processRequestInfo[struct{}](w, r)
 	if err != nil {
 		return
 	}
 
-	logs, err := logic.GetLogsFromDB(api.DB_handle, requestInfo.User)
+	logs, err := logic.GetFoodLogsFromDB(api.DB_handle, requestInfo.User)
 	if err != nil {
-		httpWriteErrorJSON(w, http.StatusInternalServerError, "failed to get logs")
+		httpWriteErrorJSON(w, http.StatusInternalServerError, "failed to get food logs")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusOK, logs)
+}
+
+func (api Api) GetWeightLogs(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[struct{}](w, r)
+	if err != nil {
+		return
+	}
+
+	logs, err := logic.GetWeightLogsFromDB(api.DB_handle, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusInternalServerError, "failed to get weight logs")
 		return
 	}
 
@@ -90,7 +115,7 @@ func (api Api) AddFoodLog(w http.ResponseWriter, r *http.Request) {
 
 	id, err := logic.AddFoodLogToDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
 	if err != nil {
-		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add log")
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add food log")
 		return
 	}
 
@@ -107,7 +132,7 @@ func (api Api) RemoveFoodLog(w http.ResponseWriter, r *http.Request) {
 
 	err = logic.RemoveFoodLogFromDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
 	if err != nil {
-		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to remove food")
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to remove food log")
 		return
 	}
 
@@ -138,4 +163,36 @@ func (api Api) AddFoodAndLog(w http.ResponseWriter, r *http.Request) {
 		"food_id": food_id,
 		"log_id":  log_id,
 	})
+}
+
+func (api Api) AddWeightLog(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.WeightLog](w, r)
+	if err != nil {
+		return
+	}
+
+	id, err := logic.AddWeightLogToDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add weight log")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusCreated, map[string]int64{
+		"id": id,
+	})
+}
+
+func (api Api) RemoveWeightLog(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.WeightLogId](w, r)
+	if err != nil {
+		return
+	}
+
+	err = logic.RemoveWeightLogFromDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to remove weight log")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Tracker · Weight</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="weight.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Food Tracker</h1>
+      <p class="muted">Weight history and check-ins.</p>
+    </div>
+
+    <nav class="tabs" aria-label="Main navigation">
+      <a class="tab-link" href="index.html">Tracker</a>
+      <a class="tab-link" href="analytics.html">Graphs</a>
+      <a class="tab-link active-link" href="weight.html">Weight</a>
+    </nav>
+  </header>
+
+  <main class="app-shell weight-shell">
+    <div class="page-header">
+      <div>
+        <h2>Weight</h2>
+        <p class="muted">Log measurements and follow the trend over time.</p>
+      </div>
+    </div>
+
+    <section id="weight-summary" class="weight-summary"></section>
+
+    <div class="weight-layout">
+      <section class="panel weight-chart-panel">
+        <div class="panel-header">
+          <div>
+            <h3>Weight trend</h3>
+            <p id="weight-chart-subtitle" class="muted">All recorded measurements.</p>
+          </div>
+
+          <div class="weight-range-controls">
+            <button class="range-button" data-range="30" type="button">30d</button>
+            <button class="range-button active" data-range="90" type="button">90d</button>
+            <button class="range-button" data-range="365" type="button">1y</button>
+            <button class="range-button" data-range="all" type="button">All</button>
+          </div>
+        </div>
+
+        <div id="weight-chart-wrap" class="weight-chart-wrap">
+          <canvas id="weight-chart"></canvas>
+          <div id="weight-tooltip" class="chart-tooltip hidden"></div>
+          <div id="weight-empty" class="weight-empty hidden">No weight measurements yet.</div>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Add measurement</h3>
+            <p class="muted">Enter weight in kilograms; it is sent to the API in grams.</p>
+          </div>
+        </div>
+
+        <form id="weight-form" class="form-stack">
+          <label>
+            Weight (kg)
+            <input id="weight-kg" type="number" min="1" step="0.01" required />
+          </label>
+
+          <div class="form-row">
+            <label>
+              Date
+              <input id="weight-date" type="date" required />
+            </label>
+
+            <label>
+              Time
+              <input id="weight-time" type="time" required />
+            </label>
+          </div>
+
+          <button class="primary-button" type="submit">Add weight</button>
+        </form>
+      </aside>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h3>Measurements</h3>
+          <p class="muted">Newest entries first.</p>
+        </div>
+      </div>
+
+      <div id="weight-list" class="weight-list"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="weight.js"></script>
+</body>
+</html>
