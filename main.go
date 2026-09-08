@@ -18,7 +18,10 @@ func main() {
 	}
 	defer api.CleanUp()
 
-	api.Init()
+	err = api.Init()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	mux := http.NewServeMux()
 
@@ -31,7 +34,11 @@ func main() {
 	mux.HandleFunc("POST /api/v1/food/food-and-log", api.AddFoodAndLog)
 
 	mux.HandleFunc("GET /api/v1/food/food", api.GetFoods)
-	mux.HandleFunc("GET /api/v1/food/log", api.GetLogs)
+	mux.HandleFunc("GET /api/v1/food/log", api.GetFoodLogs)
+
+	mux.HandleFunc("POST /api/v1/weight/log", api.AddWeightLog)
+	mux.HandleFunc("DELETE /api/v1/weight/log", api.RemoveWeightLog)
+	mux.HandleFunc("GET /api/v1/weight/log", api.GetWeightLogs)
 
 	log.Println("starting server running at http://localhost:8910 ...")
 	log.Fatal(http.ListenAndServe("localhost:8910", mux))

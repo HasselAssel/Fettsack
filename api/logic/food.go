@@ -160,18 +160,18 @@ func GetFoodsFromDB(db *sql.DB, user models.User) ([]struct {
 	return foods, nil
 }
 
-func GetLogsFromDB(db *sql.DB, user models.User) ([]struct {
+func GetFoodLogsFromDB(db *sql.DB, user models.User) ([]struct {
 	models.FoodLogId
 	models.FoodLog
 }, error) {
 	rows, err := db.Query(`
 		SELECT
-			fl.id,
-			fl.food_id,
-			fl.timestamp,
-			fl.grams
-		FROM food_log fl
-		WHERE fl.user = ?
+			id,
+			food_id,
+			timestamp,
+			grams
+		FROM food_log
+		WHERE user = ?
 	`, user.User)
 	if err != nil {
 		return nil, err
@@ -346,7 +346,7 @@ func RemoveFoodLogFromDB(db *sql.DB, payload models.FoodLogId, user models.User)
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("log not found")
+		return fmt.Errorf("food log not found")
 	}
 
 	return nil
