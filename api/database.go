@@ -2,9 +2,9 @@ package api
 
 import (
 	"database/sql"
-	"os"
-	"fmt"
 	"errors"
+	"fmt"
+	"os"
 
 	_ "modernc.org/sqlite"
 )
@@ -15,7 +15,7 @@ func GetDbHandle(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if err := db.Ping(); err != nil {
 		db.Close()
 		return nil, err

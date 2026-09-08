@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
 	"github.com/HasselAssel/Fettsack/api/models"
 )
 
@@ -27,9 +28,9 @@ func UserFromHeader(header http.Header) (models.User, error) {
 	}
 
 	return models.User{
-		User: username,
-		Email: email,
-		Name: name,
+		User:   username,
+		Email:  email,
+		Name:   name,
 		Groups: groups,
 	}, nil
 }

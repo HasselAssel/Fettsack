@@ -9,23 +9,23 @@ type FoodLogId struct {
 }
 
 type Food struct {
-	Name *string `json:"name"`
-	Brand *string `json:"brand"`
+	Name    *string `json:"name"`
+	Brand   *string `json:"brand"`
 	Barcode *string `json:"barcode"`
 
 	Calories *float64 `json:"calories"`
-	Protein *float64 `json:"protein"`
-	Fat *float64 `json:"fat"`
-	Carbs *float64 `json:"carbs"`
+	Protein  *float64 `json:"protein"`
+	Fat      *float64 `json:"fat"`
+	Carbs    *float64 `json:"carbs"`
 }
 
 type FoodLog struct {
 	FoodId
-	Timestamp *int64 `json:"unix_timestamp"`
-	Grams *float64 `json:"grams"`
+	Timestamp *int64   `json:"unix_timestamp"`
+	Grams     *float64 `json:"grams"`
 }
 
 type FoodAndLog struct {
-	Food *Food `json:"food"`
-	Log *FoodLog `json:"log"`
+	Food *Food    `json:"food"`
+	Log  *FoodLog `json:"log"`
 }

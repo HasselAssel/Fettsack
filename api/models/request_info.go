@@ -1,6 +1,6 @@
 package models
 
 type RequestInfo[T any] struct {
-	User User
+	User    User
 	Payload T
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+
 	"github.com/HasselAssel/Fettsack/api"
 )
 
@@ -12,12 +13,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	api.Init(db_handle)
-
 	api := api.Api{
 		DB_handle: db_handle,
 	}
 	defer api.CleanUp()
+
+	api.Init()
 
 	mux := http.NewServeMux()
 

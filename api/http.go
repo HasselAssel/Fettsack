@@ -1,8 +1,8 @@
 package api
 
 import (
-	"net/http"
 	"encoding/json"
+	"net/http"
 )
 
 func httpWriteErrorJSON(w http.ResponseWriter, status int, message string) {
@@ -15,8 +15,8 @@ func httpWriteErrorJSON(w http.ResponseWriter, status int, message string) {
 }
 
 func httpWriteJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json") 
-	w.WriteHeader(status) 
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

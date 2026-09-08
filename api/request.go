@@ -1,12 +1,12 @@
 package api
 
 import (
-	"net/http"
 	"errors"
 	"io"
+	"net/http"
 
-	"github.com/HasselAssel/Fettsack/api/models"
 	"github.com/HasselAssel/Fettsack/api/logic"
+	"github.com/HasselAssel/Fettsack/api/models"
 )
 
 func processRequestInfo[T any](w http.ResponseWriter, r *http.Request) (models.RequestInfo[T], error) {

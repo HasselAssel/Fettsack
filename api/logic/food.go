@@ -1,10 +1,11 @@
 package logic
 
 import (
-	"github.com/HasselAssel/Fettsack/api/models"
 	"database/sql"
-	"fmt"
 	"errors"
+	"fmt"
+
+	"github.com/HasselAssel/Fettsack/api/models"
 
 	_ "modernc.org/sqlite"
 )
@@ -97,7 +98,10 @@ func EnsureFoodTables(db *sql.DB) error {
 	return tx.Commit()
 }
 
-func GetFoodsFromDB(db *sql.DB, user models.User) ([]struct{models.FoodId; models.Food}, error) {
+func GetFoodsFromDB(db *sql.DB, user models.User) ([]struct {
+	models.FoodId
+	models.Food
+}, error) {
 	rows, err := db.Query(`
 		SELECT
 			f.id,
@@ -117,7 +121,10 @@ func GetFoodsFromDB(db *sql.DB, user models.User) ([]struct{models.FoodId; model
 	}
 	defer rows.Close()
 
-	var foods []struct{models.FoodId; models.Food}
+	var foods []struct {
+		models.FoodId
+		models.Food
+	}
 
 	for rows.Next() {
 		var foodId models.FoodId
@@ -137,9 +144,12 @@ func GetFoodsFromDB(db *sql.DB, user models.User) ([]struct{models.FoodId; model
 			return nil, err
 		}
 
-		foods = append(foods, struct{models.FoodId; models.Food}{
+		foods = append(foods, struct {
+			models.FoodId
+			models.Food
+		}{
 			FoodId: foodId,
-			Food: food,
+			Food:   food,
 		})
 	}
 
@@ -150,7 +160,10 @@ func GetFoodsFromDB(db *sql.DB, user models.User) ([]struct{models.FoodId; model
 	return foods, nil
 }
 
-func GetLogsFromDB(db *sql.DB, user models.User) ([]struct{models.FoodLogId; models.FoodLog}, error) {
+func GetLogsFromDB(db *sql.DB, user models.User) ([]struct {
+	models.FoodLogId
+	models.FoodLog
+}, error) {
 	rows, err := db.Query(`
 		SELECT
 			fl.id,
@@ -165,7 +178,10 @@ func GetLogsFromDB(db *sql.DB, user models.User) ([]struct{models.FoodLogId; mod
 	}
 	defer rows.Close()
 
-	var logs []struct{models.FoodLogId; models.FoodLog}
+	var logs []struct {
+		models.FoodLogId
+		models.FoodLog
+	}
 
 	for rows.Next() {
 		var logId models.FoodLogId
@@ -181,9 +197,12 @@ func GetLogsFromDB(db *sql.DB, user models.User) ([]struct{models.FoodLogId; mod
 			return nil, err
 		}
 
-		logs = append(logs, struct{models.FoodLogId; models.FoodLog}{
+		logs = append(logs, struct {
+			models.FoodLogId
+			models.FoodLog
+		}{
 			FoodLogId: logId,
-			FoodLog: log,
+			FoodLog:   log,
 		})
 	}
 
@@ -311,7 +330,7 @@ func AddFoodLogToDB(db *sql.DB, payload models.FoodLog, user models.User) (int64
 	return result.LastInsertId()
 }
 
-func RemoveFoodLogFromDB(db *sql.DB, payload models.FoodLogId, user models.User) (error) {
+func RemoveFoodLogFromDB(db *sql.DB, payload models.FoodLogId, user models.User) error {
 	result, err := db.Exec(
 		`
 		DELETE FROM food_log
@@ -332,7 +351,6 @@ func RemoveFoodLogFromDB(db *sql.DB, payload models.FoodLogId, user models.User)
 
 	return nil
 }
-
 
 /*_, err := db.Exec(`
 	CREATE TABLE IF NOT EXISTS recipes (
