@@ -70,6 +70,10 @@ const api = {
       headers: {
         ...(options.headers || {}),
         'Content-Type': 'application/json',
+        'Remote-User': 'TestUser',
+        'Remote-Email': 'TestUser@Test.test',
+        'Remote-Name': 'TestUserName',
+        'Remote-Groups': 'TestGroup1, TestGroup2'
       },
     })
     if (!r.ok) {
