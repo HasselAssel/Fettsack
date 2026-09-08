@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" href="icon/favicon.ico">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Food Tracker</title>
@@ -19,6 +20,7 @@
       <button class="tab-button" data-view="foods-view">Foods</button>
       <a class="tab-link" href="analytics.html">Graphs</a>
       <a class="tab-link" href="weight.html">Weight</a>
+      <a class="tab-link" href="containers.html">Containers</a>
     </nav>
   </header>
 
@@ -48,7 +50,7 @@
         </section>
 
         <aside class="panel">
-          <div class="panel-header"><div><h3>Add to day</h3><p class="muted">Log a saved food or create one on the fly.</p></div></div>
+          <div class="panel-header"><div><h3>Add to day</h3><p class="muted">Log a saved food or create one.</p></div></div>
 
           <div class="segmented-control">
             <button id="existing-food-mode" class="segment active" type="button">Saved food</button>
@@ -120,10 +122,10 @@
     </section>
 
     <section id="foods-view" class="view">
-      <div class="page-header"><div><h2>Foods</h2><p class="muted">Manage foods you can reuse in your daily log.</p></div></div>
+      <div class="page-header"><div><h2>Foods</h2><p class="muted">Manage foods for your daily logs.</p></div></div>
       <div class="content-grid">
         <section class="panel">
-          <div class="panel-header"><div><h3>Saved foods</h3><p class="muted">All foods currently stored by the backend.</p></div></div>
+          <div class="panel-header"><div><h3>Saved foods</h3><p class="muted">All your current foods.</p></div></div>
           <div id="foods-list" class="food-list"></div>
         </section>
         <aside class="panel">
@@ -141,6 +143,7 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="tracked-containers-core.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

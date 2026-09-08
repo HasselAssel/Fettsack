@@ -2,6 +2,8 @@ const API = {
   foods: "/api/v1/food/food",
   logs: "/api/v1/food/log",
   weightLogs: "/api/v1/weight/log",
+  trackedContainers: "/api/v1/food/tracked-container/tracked-container",
+  trackedContainerLogs: "/api/v1/food/tracked-container/log",
 };
 
 const METRICS = {
@@ -74,12 +76,16 @@ const api = {
   getFoods() { return this.request(API.foods); },
   getLogs() { return this.request(API.logs); },
   getWeightLogs() { return this.request(API.weightLogs); },
+  getTrackedContainers() { return this.request(API.trackedContainers); },
+  getTrackedContainerLogs() { return this.request(API.trackedContainerLogs); },
 };
 
 const state = {
   foods: [],
   logs: [],
   weightLogs: [],
+  trackedContainers: [],
+  trackedContainerLogs: [],
   buckets: [],
   selectedMetrics: new Set(["calories", "protein"]),
   aggregation: "auto",
@@ -117,14 +123,22 @@ async function init() {
   applyPresetDays(30);
 
   try {
-    const [foodRows, logRows, weightRows] = await Promise.all([
+    const [foodRows, logRows, weightRows, containerRows, containerLogRows] = await Promise.all([
       api.getFoods(),
       api.getLogs(),
       api.getWeightLogs(),
+      api.getTrackedContainers(),
+      api.getTrackedContainerLogs(),
     ]);
     state.foods = (foodRows ?? []).map((row) => new Food(row));
     state.logs = (logRows ?? []).map((row) => new FoodLog(row));
     state.weightLogs = (weightRows ?? []).map((row) => new WeightLog(row));
+    state.trackedContainers = (containerRows ?? []).map(
+      (row) => new window.TrackedContainers.FoodTrackedContainer(row)
+    );
+    state.trackedContainerLogs = (containerLogRows ?? []).map(
+      (row) => new window.TrackedContainers.FoodTrackedContainerLog(row)
+    );
     render();
   } catch (error) {
     showToast(`Could not load data: ${error.message}`, true);
@@ -200,7 +214,7 @@ function renderHeader(range) {
 
 function renderSummary(range) {
   const logs = logsForRange(range.start, addDays(range.end, 1));
-  const totals = totalsForLogs(logs);
+  const totals = totalsForRange(range.start, addDays(range.end, 1));
   const days = Math.max(1, daysBetween(range.start, range.end) + 1);
   const weights = weightLogsForRange(range.start, addDays(range.end, 1))
     .sort((x, y) => x.unix_timestamp - y.unix_timestamp);
@@ -273,7 +287,7 @@ function renderBreakdown() {
         const value = bucket.values[key];
         return `<td>${value == null ? "—" : `${formatNumber(value)} ${METRICS[key].unit}`}</td>`;
       }).join("")}
-      <td>${bucket.entries}${bucket.weightEntries ? ` · ${bucket.weightEntries} weight` : ""}</td>
+      <td>${bucket.entries}${bucket.estimatedEntries ? ` · ${bucket.estimatedEntries} estimated` : ""}${bucket.weightEntries ? ` · ${bucket.weightEntries} weight` : ""}</td>
     </tr>
   `).join("");
 }
@@ -302,10 +316,12 @@ function buildBuckets(start, end, aggregation) {
       label = new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short" }).format(bucketStart);
     }
 
-    const logs = logsForRange(bucketStart, addDays(bucketEnd, 1));
-    const weights = weightLogsForRange(bucketStart, addDays(bucketEnd, 1))
+    const bucketEndExclusive = addDays(bucketEnd, 1);
+    const logs = logsForRange(bucketStart, bucketEndExclusive);
+    const estimates = estimatedContainerEntriesForRange(bucketStart, bucketEndExclusive);
+    const weights = weightLogsForRange(bucketStart, bucketEndExclusive)
       .sort((a, b) => a.unix_timestamp - b.unix_timestamp);
-    const values = totalsForLogs(logs);
+    const values = totalsForRange(bucketStart, bucketEndExclusive);
     values.weight = weights.length ? weights[weights.length - 1].kilograms : null;
 
     buckets.push({
@@ -314,6 +330,7 @@ function buildBuckets(start, end, aggregation) {
       label,
       values,
       entries: logs.length,
+      estimatedEntries: estimates.length,
       weightEntries: weights.length,
     });
 
@@ -573,7 +590,7 @@ function handleChartHover(event) {
       const value = closest.bucket.values[key];
       return `${METRICS[key].label}: ${value == null ? "—" : `${formatNumber(value)} ${METRICS[key].unit}`}`;
     }).join("<br>")}
-    <br>${closest.bucket.entries} ${closest.bucket.entries === 1 ? "food entry" : "food entries"}${closest.bucket.weightEntries ? ` · ${closest.bucket.weightEntries} weight` : ""}
+    <br>${closest.bucket.entries} ${closest.bucket.entries === 1 ? "food log" : "food logs"}${closest.bucket.estimatedEntries ? ` · ${closest.bucket.estimatedEntries} estimated` : ""}${closest.bucket.weightEntries ? ` · ${closest.bucket.weightEntries} weight` : ""}
   `;
   elements.tooltip.classList.remove("hidden");
 
@@ -651,6 +668,46 @@ function totalsForLogs(logs) {
   }
 
   return totals;
+}
+
+function estimatedContainerEntriesForRange(start, endExclusive) {
+  return window.TrackedContainers.estimatedEntriesForRange(
+    state.trackedContainers,
+    state.trackedContainerLogs,
+    start,
+    endExclusive
+  );
+}
+
+function totalsForEstimatedEntries(entries) {
+  const totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  const foods = new Map(state.foods.map((food) => [Number(food.food_id), food]));
+
+  for (const entry of entries) {
+    const food = foods.get(Number(entry.food_id));
+    if (!food) continue;
+    const factor = entry.grams / 100;
+    totals.calories += food.calories * factor;
+    totals.protein += food.protein * factor;
+    totals.carbs += food.carbs * factor;
+    totals.fat += food.fat * factor;
+  }
+
+  return totals;
+}
+
+function totalsForRange(start, endExclusive) {
+  const regular = totalsForLogs(logsForRange(start, endExclusive));
+  const estimated = totalsForEstimatedEntries(
+    estimatedContainerEntriesForRange(start, endExclusive)
+  );
+
+  return {
+    calories: regular.calories + estimated.calories,
+    protein: regular.protein + estimated.protein,
+    carbs: regular.carbs + estimated.carbs,
+    fat: regular.fat + estimated.fat,
+  };
 }
 
 function logsForRange(start, endExclusive) {

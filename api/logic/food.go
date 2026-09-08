@@ -81,14 +81,13 @@ func EnsureFoodTables(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS tracked_food_measurements (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 
+			user TEXT NOT NULL,
 			container_id INTEGER NOT NULL,
-			timestamp INTEGER NOT NULL DEFAULT (unixepoch()),
 
+			timestamp INTEGER NOT NULL DEFAULT (unixepoch()),
 			grams_remaining REAL NOT NULL CHECK (grams_remaining >= 0),
 
-			FOREIGN KEY (container_id)
-				REFERENCES tracked_food_containers(id)
-				ON DELETE CASCADE
+			FOREIGN KEY (container_id) REFERENCES tracked_food_containers(id)
 		);
 	`)
 	if err != nil {
@@ -213,6 +212,114 @@ func GetFoodLogsFromDB(db *sql.DB, user models.User) ([]struct {
 	return logs, nil
 }
 
+func GetTrackedFoodContainersFromDB(db *sql.DB, user models.User) ([]struct {
+	models.FoodTrackedContainerId
+	models.FoodTrackedContainer
+}, error) {
+	rows, err := db.Query(`
+		SELECT
+			id,
+			food_id,
+			started_at,
+			start_weight,
+			label
+		FROM tracked_food_containers
+		WHERE user = ?
+	`, user.User)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var containers []struct {
+		models.FoodTrackedContainerId
+		models.FoodTrackedContainer
+	}
+
+	for rows.Next() {
+		var containerId models.FoodTrackedContainerId
+		var container models.FoodTrackedContainer
+
+		err := rows.Scan(
+			&containerId.Tracked_container_id,
+			&container.Food_id,
+			&container.Started_at,
+			&container.Start_weight,
+			&container.Label,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		containers = append(containers, struct {
+			models.FoodTrackedContainerId
+			models.FoodTrackedContainer
+		}{
+			FoodTrackedContainerId: containerId,
+			FoodTrackedContainer:   container,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return containers, nil
+}
+
+func GetTrackedFoodContainerLogsFromDB(db *sql.DB, user models.User) ([]struct {
+	models.FoodTrackedContainerLogId
+	models.FoodTrackedContainerLog
+}, error) {
+	rows, err := db.Query(`
+		SELECT
+			id,
+			container_id,
+			timestamp,
+			grams_remaining
+		FROM tracked_food_measurements
+		WHERE user = ?
+	`, user.User)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []struct {
+		models.FoodTrackedContainerLogId
+		models.FoodTrackedContainerLog
+	}
+
+	for rows.Next() {
+		var logId models.FoodTrackedContainerLogId
+		var log models.FoodTrackedContainerLog
+
+		err := rows.Scan(
+			&logId.Tracked_container_log_id,
+			&log.Tracked_container_id,
+			&log.Timestamp,
+			&log.Grams_remaining,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		logs = append(logs, struct {
+			models.FoodTrackedContainerLogId
+			models.FoodTrackedContainerLog
+		}{
+			FoodTrackedContainerLogId: logId,
+			FoodTrackedContainerLog:   log,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return logs, nil
+}
+
 func AddFoodToBD(db *sql.DB, payload models.Food, user models.User) (int64, error) {
 	tx, err := db.Begin()
 	if err != nil {
@@ -275,7 +382,10 @@ func RemoveFoodFromDB(db *sql.DB, payload models.FoodId, user models.User) error
 		WHERE food_id = ? AND user = ? AND NOT EXISTS (
 			SELECT 1 FROM food_log WHERE food_id = ? AND user = ?
 		)
-	`, payload.Food_id, user.User, payload.Food_id, user.User)
+		AND NOT EXISTS (
+			SELECT 1 FROM tracked_food_containers WHERE food_id = ? AND user = ?
+		)
+	`, payload.Food_id, user.User, payload.Food_id, user.User, payload.Food_id, user.User)
 	if err != nil {
 		return err
 	}
@@ -352,38 +462,127 @@ func RemoveFoodLogFromDB(db *sql.DB, payload models.FoodLogId, user models.User)
 	return nil
 }
 
-/*_, err := db.Exec(`
-	CREATE TABLE IF NOT EXISTS recipes (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL
-		UNIQUE (name)
-	);
-`)
-if err != nil {
-	return err
+func AddTrackedFoodContainerToDB(db *sql.DB, payload models.FoodTrackedContainer, user models.User) (int64, error) {
+	result, err := db.Exec(`
+		INSERT INTO tracked_food_containers (
+			user,
+			food_id,
+			started_at,
+			start_weight,
+			label
+		)
+		SELECT ?, ?, ?, ?, ?
+		WHERE EXISTS (
+			SELECT 1
+			FROM food_owners
+			WHERE user = ? AND food_id = ?
+		)
+	`,
+		user.User,
+		payload.Food_id,
+		payload.Started_at,
+		payload.Start_weight,
+		payload.Label,
+		user.User,
+		payload.Food_id,
+	)
+	if err != nil {
+		return -1, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return -1, err
+	}
+
+	if rows == 0 {
+		return -1, errors.New("user doesn't have this food")
+	}
+
+	return result.LastInsertId()
 }
-_, err := db.Exec(`
-	CREATE TABLE IF NOT EXISTS recipe_items (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		recipe_id INTEGER NOT NULL,
+func RemoveTrackedFoodContainerFromDB(db *sql.DB, payload models.FoodTrackedContainerId, user models.User) error {
+	result, err := db.Exec(
+		`
+		DELETE FROM tracked_food_containers
+		WHERE id = ? AND user = ? 
+		AND NOT EXISTS (
+			SELECT 1 FROM tracked_food_measurements WHERE container_id = ? AND user = ?
+		)
+	`, payload.Tracked_container_id, user.User, payload.Tracked_container_id, user.User)
+	if err != nil {
+		return err
+	}
 
-		ingredients_id INTEGER,
-		child_recipe_id INTEGER,
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
 
-		FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
-		FOREIGN KEY (ingredients_id) REFERENCES ingredients(id),
-		FOREIGN KEY (child_recipe_id) REFERENCES recipes(id),
+	if rows == 0 {
+		return fmt.Errorf("tracked food container not found or has measurements")
+	}
 
-		CHECK (
-			(ingredients_id IS NOT NULL AND child_recipe_id IS NULL)
-			OR
-			(ingredients_id IS NULL AND child_recipe_id IS NOT NULL)
-		),
+	return nil
+}
 
-		UNIQUE (recipe_id, ingredients_id, child_recipe_id)
-	);
-`)
-if err != nil {
-	return err
-}*/
+func AddTrackedFoodContainerLogToDB(db *sql.DB, payload models.FoodTrackedContainerLog, user models.User) (int64, error) {
+	result, err := db.Exec(`
+		INSERT INTO tracked_food_measurements (
+			user,
+			container_id,
+			timestamp,
+			grams_remaining
+		)
+		SELECT ?, ?, ?, ?
+		WHERE EXISTS (
+			SELECT 1
+			FROM tracked_food_containers
+			WHERE user = ? AND id = ?
+		)
+	`,
+		user.User,
+		payload.Tracked_container_id,
+		payload.Timestamp,
+		payload.Grams_remaining,
+		user.User,
+		payload.Tracked_container_id,
+	)
+	if err != nil {
+		return -1, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return -1, err
+	}
+
+	if rows == 0 {
+		return -1, errors.New("user doesn't have this food")
+	}
+
+	return result.LastInsertId()
+}
+
+func RemoveTrackedFoodContainerLogFromDB(db *sql.DB, payload models.FoodTrackedContainerLogId, user models.User) error {
+	result, err := db.Exec(
+		`
+		DELETE FROM tracked_food_measurements
+		WHERE id = ? AND user = ?
+	`, payload.Tracked_container_log_id, user.User)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("tracked food log not found")
+	}
+
+	return nil
+}

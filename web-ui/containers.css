@@ -1,0 +1,150 @@
+.containers-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.active-link {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.explanation-panel {
+  line-height: 1.55;
+}
+
+.explanation-panel p {
+  margin: 8px 0 0;
+}
+
+.containers-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.7fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.containers-list {
+  display: grid;
+  gap: 14px;
+}
+
+.container-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+
+.container-card-main {
+  padding: 16px;
+}
+
+.container-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.container-card h4 {
+  margin: 0 0 5px;
+  font-size: 1.04rem;
+}
+
+.container-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.container-stat {
+  padding: 10px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid var(--border);
+}
+
+.container-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: .76rem;
+  margin-bottom: 4px;
+}
+
+.container-stat strong {
+  font-size: .95rem;
+}
+
+.container-update {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(130px, 1fr) minmax(100px, .8fr) auto;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: white;
+  align-items: end;
+}
+
+.container-history {
+  border-top: 1px solid var(--border);
+  background: white;
+}
+
+.container-history summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  color: var(--muted);
+  font-size: .88rem;
+  font-weight: 700;
+}
+
+.container-history-list {
+  padding: 0 16px 8px;
+}
+
+.container-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.container-warning {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: #fff7ed;
+  color: #9a4d0b;
+  font-size: .83rem;
+}
+
+.estimated-note {
+  color: var(--accent);
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .containers-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .container-update {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .container-stats,
+  .container-update {
+    grid-template-columns: 1fr;
+  }
+
+  .container-card-header {
+    flex-direction: column;
+  }
+}

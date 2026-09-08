@@ -60,6 +60,36 @@ func (api Api) GetFoodLogs(w http.ResponseWriter, r *http.Request) {
 	httpWriteJSON(w, http.StatusOK, logs)
 }
 
+func (api Api) GetTrackedFoodContainers(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[struct{}](w, r)
+	if err != nil {
+		return
+	}
+
+	food_containers, err := logic.GetTrackedFoodContainersFromDB(api.DB_handle, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusInternalServerError, "failed to get tracked food containers")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusOK, food_containers)
+}
+
+func (api Api) GetTrackedFoodContainerLogs(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[struct{}](w, r)
+	if err != nil {
+		return
+	}
+
+	logs, err := logic.GetTrackedFoodContainerLogsFromDB(api.DB_handle, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusInternalServerError, "failed to get tracked food container logs")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusOK, logs)
+}
+
 func (api Api) GetWeightLogs(w http.ResponseWriter, r *http.Request) {
 	requestInfo, err := processRequestInfo[struct{}](w, r)
 	if err != nil {
@@ -163,6 +193,70 @@ func (api Api) AddFoodAndLog(w http.ResponseWriter, r *http.Request) {
 		"food_id": food_id,
 		"log_id":  log_id,
 	})
+}
+
+func (api Api) AddTrackedFoodContainer(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.FoodTrackedContainer](w, r)
+	if err != nil {
+		return
+	}
+
+	id, err := logic.AddTrackedFoodContainerToDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add tracked food container")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusCreated, map[string]int64{
+		"id": id,
+	})
+}
+
+func (api Api) RemoveTrackedFoodContainer(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.FoodTrackedContainerId](w, r)
+	if err != nil {
+		return
+	}
+
+	err = logic.RemoveTrackedFoodContainerFromDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to remove weight log")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (api Api) AddTrackedFoodContainerLog(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.FoodTrackedContainerLog](w, r)
+	if err != nil {
+		return
+	}
+
+	id, err := logic.AddTrackedFoodContainerLogToDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to add tracked food container")
+		return
+	}
+
+	httpWriteJSON(w, http.StatusCreated, map[string]int64{
+		"id": id,
+	})
+}
+
+func (api Api) RemoveTrackedFoodContainerLog(w http.ResponseWriter, r *http.Request) {
+	requestInfo, err := processRequestInfo[models.FoodTrackedContainerLogId](w, r)
+	if err != nil {
+		return
+	}
+
+	err = logic.RemoveTrackedFoodContainerLogFromDB(api.DB_handle, requestInfo.Payload, requestInfo.User)
+	if err != nil {
+		httpWriteErrorJSON(w, http.StatusUnprocessableEntity, "failed to remove weight log")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (api Api) AddWeightLog(w http.ResponseWriter, r *http.Request) {
