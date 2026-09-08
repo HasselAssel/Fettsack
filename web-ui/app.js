@@ -2,6 +2,8 @@ const API = {
   foods: '/api/v1/food/food',
   logs: '/api/v1/food/log',
   foodAndLog: '/api/v1/food/food-and-log',
+  trackedContainers: '/api/v1/food/tracked-container/tracked-container',
+  trackedContainerLogs: '/api/v1/food/tracked-container/log',
 }
 class Food {
   constructor({
@@ -58,6 +60,8 @@ class FoodLog {
 const state = {
   foods: [],
   logs: [],
+  trackedContainers: [],
+  trackedContainerLogs: [],
   selectedDate: startOfLocalDay(new Date()),
   selectedWeek: startOfWeek(new Date()),
   selectedMonth: startOfMonth(new Date()),
@@ -93,6 +97,12 @@ const api = {
   },
   getLogs() {
     return this.request(API.logs)
+  },
+  getTrackedContainers() {
+    return this.request(API.trackedContainers)
+  },
+  getTrackedContainerLogs() {
+    return this.request(API.trackedContainerLogs)
   },
   addFood(food) {
     return this.request(API.foods, {
@@ -215,9 +225,20 @@ function bindEvents() {
   elements.monthDays.addEventListener('click', handlePeriodDayClick)
 }
 async function refreshData() {
-  const [f, l] = await Promise.all([api.getFoods(), api.getLogs()])
-  state.foods = f ?? [].map((x) => new Food(x))
-  state.logs = l ?? [].map((x) => new FoodLog(x))
+  const [f, l, containers, containerLogs] = await Promise.all([
+    api.getFoods(),
+    api.getLogs(),
+    api.getTrackedContainers(),
+    api.getTrackedContainerLogs(),
+  ])
+  state.foods = (f ?? []).map((x) => new Food(x))
+  state.logs = (l ?? []).map((x) => new FoodLog(x))
+  state.trackedContainers = (containers ?? []).map(
+    (x) => new window.TrackedContainers.FoodTrackedContainer(x)
+  )
+  state.trackedContainerLogs = (containerLogs ?? []).map(
+    (x) => new window.TrackedContainers.FoodTrackedContainerLog(x)
+  )
   renderAll()
 }
 function renderAll() {
@@ -300,29 +321,55 @@ function renderFoodOptions() {
 }
 function renderDay() {
   syncDateInput()
-  const logs = logsForRange(
-    startOfLocalDay(state.selectedDate),
-    addDays(state.selectedDate, 1)
-  ).sort((a, b) => a.unix_timestamp - b.unix_timestamp)
+  const start = startOfLocalDay(state.selectedDate)
+  const end = addDays(state.selectedDate, 1)
+  const logs = logsForRange(start, end).sort(
+    (a, b) => a.unix_timestamp - b.unix_timestamp
+  )
+  const estimates = estimatedContainerEntriesForRange(start, end)
+
   elements.dayTitle.textContent = formatDateHeading(state.selectedDate)
-  elements.dayLogList.innerHTML = logs.length
-    ? logs
-        .map((l) => {
-          const f = findFood(l.food_id),
-            n = f ? nutritionForLog(f, l.grams) : null
-          return `<article class="log-row"><div class="log-main"><strong>${
-            f ? escapeHtml(f.name) : `Food #${l.food_id}`
-          }</strong><div class="meta"><span>${formatTime(
-            l.unix_timestamp
-          )}</span><span>${formatNumber(l.grams)} g</span>${
-            n ? `<span>${formatNumber(n.calories)} kcal</span>` : ''
-          }</div></div><div class="row-actions"><button type="button" class="danger-button" data-action="remove-log" data-log-id="${
-            l.log_id
-          }">Remove</button></div></article>`
-        })
-        .join('')
-    : emptyState('Nothing logged for this day.')
-  const t = totalsForLogs(logs)
+
+  const regularRows = logs.map((l) => {
+    const f = findFood(l.food_id)
+    const n = f ? nutritionForLog(f, l.grams) : null
+    return `<article class="log-row"><div class="log-main"><strong>${
+      f ? escapeHtml(f.name) : `Food #${l.food_id}`
+    }</strong><div class="meta"><span>${formatTime(
+      l.unix_timestamp
+    )}</span><span>${formatNumber(l.grams)} g</span>${
+      n ? `<span>${formatNumber(n.calories)} kcal</span>` : ''
+    }</div></div><div class="row-actions"><button type="button" class="danger-button" data-action="remove-log" data-log-id="${
+      l.log_id
+    }">Remove</button></div></article>`
+  })
+
+  const estimatedByContainer = new Map()
+  for (const entry of estimates) {
+    const key = Number(entry.tracked_container_id)
+    const current = estimatedByContainer.get(key) ?? { ...entry, grams: 0 }
+    current.grams += entry.grams
+    estimatedByContainer.set(key, current)
+  }
+
+  const estimatedRows = [...estimatedByContainer.values()].map((entry) => {
+    const f = findFood(entry.food_id)
+    const n = f ? nutritionForLog(f, entry.grams) : null
+    return `<article class="log-row estimated-log-row"><div class="log-main"><strong>${
+      f ? escapeHtml(f.name) : `Food #${entry.food_id}`
+    }</strong><div class="meta"><span class="estimated-badge">Estimated · ${escapeHtml(
+      entry.label || 'tracked container'
+    )}</span><span>${formatNumber(entry.grams)} g</span>${
+      n ? `<span>${formatNumber(n.calories)} kcal</span>` : ''
+    }</div></div><div class="row-actions"><a class="small-link" href="containers.html">Container</a></div></article>`
+  })
+
+  const rows = [...regularRows, ...estimatedRows]
+  elements.dayLogList.innerHTML = rows.length
+    ? rows.join('')
+    : emptyState('Nothing logged or estimated for this day.')
+
+  const t = totalsForRange(start, end)
   elements.summaryCalories.textContent = `${formatNumber(t.calories)} kcal`
   elements.summaryProtein.textContent = `${formatNumber(t.protein)} g`
   elements.summaryCarbs.textContent = `${formatNumber(t.carbs)} g`
@@ -332,8 +379,8 @@ function renderWeek() {
   const start = startOfWeek(state.selectedWeek),
     end = addDays(start, 7),
     logs = logsForRange(start, end),
-    totals = totalsForLogs(logs),
-    active = countDaysWithLogs(start, 7)
+    totals = totalsForRange(start, end),
+    active = countActiveDays(start, 7)
   elements.weekRangeLabel.textContent = `${formatShortDate(
     start
   )} – ${formatShortDate(addDays(end, -1))}`
@@ -343,15 +390,16 @@ function renderWeek() {
   )
     .map((d) => {
       const dl = logsForRange(d, addDays(d, 1)),
-        t = totalsForLogs(dl)
+        estimated = estimatedContainerEntriesForRange(d, addDays(d, 1)),
+        t = totalsForRange(d, addDays(d, 1))
       return `<article class="period-row" data-date="${localDateToInputValue(
         d
       )}"><div class="period-main"><strong>${formatWeekday(
         d
       )}</strong><div class="meta"><span>${formatShortDate(d)}</span><span>${
         dl.length
-      } ${
-        dl.length === 1 ? 'entry' : 'entries'
+      } ${dl.length === 1 ? 'log' : 'logs'}${
+        estimated.length ? ` · ${estimated.length} estimated` : ''
       }</span></div></div><div class="period-macros"><span>${formatNumber(
         t.calories
       )} kcal</span><span>P ${formatNumber(
@@ -367,8 +415,8 @@ function renderMonth() {
     end = addMonths(start, 1),
     days = Math.round((end - start) / 86400000),
     logs = logsForRange(start, end),
-    totals = totalsForLogs(logs),
-    active = countDaysWithLogs(start, days)
+    totals = totalsForRange(start, end),
+    active = countActiveDays(start, days)
   elements.monthRangeLabel.textContent = new Intl.DateTimeFormat(undefined, {
     month: 'long',
     year: 'numeric',
@@ -382,15 +430,16 @@ function renderMonth() {
   for (let i = 0; i < days; i++) {
     const d = addDays(start, i),
       dl = logsForRange(d, addDays(d, 1)),
-      t = totalsForLogs(dl)
+      estimated = estimatedContainerEntriesForRange(d, addDays(d, 1)),
+      t = totalsForRange(d, addDays(d, 1))
     cells.push(
       `<article class="month-day" data-date="${localDateToInputValue(
         d
       )}"><div class="day-number">${d.getDate()}</div><span class="day-kcal">${formatNumber(
         t.calories
       )} kcal</span><span class="day-meta">${dl.length} ${
-        dl.length === 1 ? 'entry' : 'entries'
-      }</span><span class="day-meta">P ${formatNumber(
+        dl.length === 1 ? 'log' : 'logs'
+      }${estimated.length ? ` · ${estimated.length} est.` : ''}</span><span class="day-meta">P ${formatNumber(
         t.protein
       )} · C ${formatNumber(t.carbs)} · F ${formatNumber(
         t.fat
@@ -557,15 +606,51 @@ function divideTotals(t, d) {
       }
     : emptyTotals()
 }
-function countDaysWithLogs(s, n) {
+function countActiveDays(s, n) {
   let c = 0
   for (let i = 0; i < n; i++) {
     const d = addDays(s, i)
-    if (logsForRange(d, addDays(d, 1)).length) {
+    const end = addDays(d, 1)
+    if (
+      logsForRange(d, end).length ||
+      estimatedContainerEntriesForRange(d, end).length
+    ) {
       c++
     }
   }
   return c
+}
+function estimatedContainerEntriesForRange(start, end) {
+  return window.TrackedContainers.estimatedEntriesForRange(
+    state.trackedContainers,
+    state.trackedContainerLogs,
+    start,
+    end
+  )
+}
+function totalsForEstimatedEntries(entries) {
+  return entries.reduce((sum, entry) => {
+    const food = findFood(entry.food_id)
+    if (!food) return sum
+    const n = nutritionForLog(food, entry.grams)
+    sum.calories += n.calories
+    sum.protein += n.protein
+    sum.carbs += n.carbs
+    sum.fat += n.fat
+    return sum
+  }, emptyTotals())
+}
+function totalsForRange(start, end) {
+  const regular = totalsForLogs(logsForRange(start, end))
+  const estimated = totalsForEstimatedEntries(
+    estimatedContainerEntriesForRange(start, end)
+  )
+  return {
+    calories: regular.calories + estimated.calories,
+    protein: regular.protein + estimated.protein,
+    carbs: regular.carbs + estimated.carbs,
+    fat: regular.fat + estimated.fat,
+  }
 }
 function logsForRange(s, e) {
   const a = s.getTime() / 1000,
