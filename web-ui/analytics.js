@@ -1,6 +1,7 @@
 const API = {
   foods: "/api/v1/food/food",
   logs: "/api/v1/food/log",
+  weightLogs: "/api/v1/weight/log",
 };
 
 const METRICS = {
@@ -8,6 +9,7 @@ const METRICS = {
   protein:  { label: "Protein", short: "P", unit: "g", axis: "macros", stroke: "#3268a8" },
   carbs:    { label: "Carbs", short: "C", unit: "g", axis: "macros", stroke: "#b56a1d" },
   fat:      { label: "Fat", short: "F", unit: "g", axis: "macros", stroke: "#8b5aa6" },
+  weight:   { label: "Weight", short: "kg", unit: "kg", axis: "weight", stroke: "#b23a48" },
 };
 
 class Food {
@@ -27,6 +29,18 @@ class FoodLog {
     this.food_id = row.food_id ?? null;
     this.unix_timestamp = Number(row.unix_timestamp ?? 0);
     this.grams = Number(row.grams ?? 0);
+  }
+}
+
+class WeightLog {
+  constructor(row = {}) {
+    this.weight_id = row.weight_id ?? null;
+    this.unix_timestamp = Number(row.unix_timestamp ?? 0);
+    this.grams = Number(row.grams ?? 0);
+  }
+
+  get kilograms() {
+    return this.grams / 1000;
   }
 }
 
@@ -59,11 +73,13 @@ const api = {
 
   getFoods() { return this.request(API.foods); },
   getLogs() { return this.request(API.logs); },
+  getWeightLogs() { return this.request(API.weightLogs); },
 };
 
 const state = {
   foods: [],
   logs: [],
+  weightLogs: [],
   buckets: [],
   selectedMetrics: new Set(["calories", "protein"]),
   aggregation: "auto",
@@ -101,9 +117,14 @@ async function init() {
   applyPresetDays(30);
 
   try {
-    const [foodRows, logRows] = await Promise.all([api.getFoods(), api.getLogs()]);
+    const [foodRows, logRows, weightRows] = await Promise.all([
+      api.getFoods(),
+      api.getLogs(),
+      api.getWeightLogs(),
+    ]);
     state.foods = (foodRows ?? []).map((row) => new Food(row));
     state.logs = (logRows ?? []).map((row) => new FoodLog(row));
+    state.weightLogs = (weightRows ?? []).map((row) => new WeightLog(row));
     render();
   } catch (error) {
     showToast(`Could not load data: ${error.message}`, true);
@@ -181,9 +202,37 @@ function renderSummary(range) {
   const logs = logsForRange(range.start, addDays(range.end, 1));
   const totals = totalsForLogs(logs);
   const days = Math.max(1, daysBetween(range.start, range.end) + 1);
+  const weights = weightLogsForRange(range.start, addDays(range.end, 1))
+    .sort((x, y) => x.unix_timestamp - y.unix_timestamp);
 
   elements.summaryCards.innerHTML = [...state.selectedMetrics].map((key) => {
     const metric = METRICS[key];
+
+    if (key === "weight") {
+      if (!weights.length) {
+        return `
+          <article class="graph-stat">
+            <span class="stat-name">${metric.label}</span>
+            <strong>—</strong>
+            <small>No measurements in this period</small>
+          </article>
+        `;
+      }
+
+      const first = weights[0].kilograms;
+      const last = weights[weights.length - 1].kilograms;
+      const change = last - first;
+      const signed = `${change > 0 ? "+" : ""}${formatNumber(change)}`;
+
+      return `
+        <article class="graph-stat">
+          <span class="stat-name">${metric.label}</span>
+          <strong>${formatNumber(last)} kg</strong>
+          <small>${signed} kg across ${weights.length} ${weights.length === 1 ? "measurement" : "measurements"}</small>
+        </article>
+      `;
+    }
+
     return `
       <article class="graph-stat">
         <span class="stat-name">${metric.label}</span>
@@ -220,8 +269,11 @@ function renderBreakdown() {
   elements.breakdownBody.innerHTML = state.buckets.map((bucket) => `
     <tr>
       <td>${escapeHtml(bucket.label)}</td>
-      ${selected.map((key) => `<td>${formatNumber(bucket.values[key])} ${METRICS[key].unit}</td>`).join("")}
-      <td>${bucket.entries}</td>
+      ${selected.map((key) => {
+        const value = bucket.values[key];
+        return `<td>${value == null ? "—" : `${formatNumber(value)} ${METRICS[key].unit}`}</td>`;
+      }).join("")}
+      <td>${bucket.entries}${bucket.weightEntries ? ` · ${bucket.weightEntries} weight` : ""}</td>
     </tr>
   `).join("");
 }
@@ -251,12 +303,18 @@ function buildBuckets(start, end, aggregation) {
     }
 
     const logs = logsForRange(bucketStart, addDays(bucketEnd, 1));
+    const weights = weightLogsForRange(bucketStart, addDays(bucketEnd, 1))
+      .sort((a, b) => a.unix_timestamp - b.unix_timestamp);
+    const values = totalsForLogs(logs);
+    values.weight = weights.length ? weights[weights.length - 1].kilograms : null;
+
     buckets.push({
       start: bucketStart,
       end: bucketEnd,
       label,
-      values: totalsForLogs(logs),
+      values,
       entries: logs.length,
+      weightEntries: weights.length,
     });
 
     cursor = next;
@@ -282,18 +340,52 @@ function drawChart() {
   ctx.clearRect(0, 0, rect.width, rect.height);
 
   const selected = [...state.selectedMetrics];
-  const hasData = state.buckets.some((bucket) => selected.some((key) => bucket.values[key] > 0));
+  const hasData = state.buckets.some((bucket) =>
+    selected.some((key) => bucket.values[key] != null && bucket.values[key] > 0)
+  );
   elements.chartEmpty.classList.toggle("hidden", hasData);
   if (!state.buckets.length) return;
 
-  const selectedHasCalories = selected.includes("calories");
-  const macroMetrics = selected.filter((key) => key !== "calories");
+  const hasCalories = selected.includes("calories");
+  const macroMetrics = selected.filter((key) => METRICS[key].axis === "macros");
+  const hasMacros = macroMetrics.length > 0;
+  const hasWeight = selected.includes("weight");
 
+  // Calories and macros naturally start at zero.
+  const calMax = niceMax(Math.max(0, ...state.buckets.map((b) => b.values.calories ?? 0)));
+  const macroMax = niceMax(Math.max(
+    0,
+    ...state.buckets.flatMap((b) =>
+      macroMetrics.map((key) => b.values[key] ?? 0)
+    )
+  ));
+
+  // Weight should NOT start at zero. Use a padded local range so small changes remain visible.
+  const weightValues = state.buckets
+    .map((b) => b.values.weight)
+    .filter((v) => Number.isFinite(v));
+  const weightScale = makeWeightScale(weightValues);
+
+  // Up to three scales:
+  // left = calories when selected, otherwise macros
+  // inner right = macros when calories are also selected
+  // outer right = weight
+  const leftAxis = hasCalories ? "calories" : hasMacros ? "macros" : "weight";
+  const leftScale = leftAxis === "calories"
+    ? { min: 0, max: calMax }
+    : leftAxis === "macros"
+      ? { min: 0, max: macroMax }
+      : weightScale;
+
+  const rightAxis = hasCalories && hasMacros ? "macros" : null;
+  const rightScale = rightAxis ? { min: 0, max: macroMax } : null;
+
+  const weightOnRight = hasWeight && leftAxis !== "weight";
   const padding = {
     top: 18,
-    right: selectedHasCalories && macroMetrics.length ? 58 : 26,
+    right: weightOnRight ? (rightAxis ? 112 : 72) : (rightAxis ? 62 : 28),
     bottom: 46,
-    left: 58,
+    left: 62,
   };
 
   const plot = {
@@ -304,55 +396,32 @@ function drawChart() {
   };
   chart.plot = plot;
 
-  const calMax = niceMax(Math.max(0, ...state.buckets.map((b) => b.values.calories)));
-  const macroMax = niceMax(
-    Math.max(
-      0,
-      ...state.buckets.flatMap((b) =>
-        selected
-          .filter((key) => METRICS[key].axis === "macros")
-          .map((key) => b.values[key])
-      )
-    )
-  );
+  drawGridAndAxes(ctx, plot, leftAxis, leftScale, rightAxis, rightScale);
 
-  let leftAxis = "macros";
-  let leftMax = macroMax;
-  let rightAxis = null;
-  let rightMax = null;
-
-  if (selectedHasCalories) {
-    leftAxis = "calories";
-    leftMax = calMax;
-    if (macroMetrics.length) {
-      rightAxis = "macros";
-      rightMax = macroMax;
-    }
+  if (weightOnRight) {
+    drawRightAxis(ctx, plot, "weight", weightScale, rightAxis ? 58 : 0);
   }
-
-  drawGridAndAxes(ctx, plot, leftAxis, leftMax, rightAxis, rightMax);
 
   chart.points = state.buckets.map((bucket, index) => ({
     x: xForIndex(index, state.buckets.length, plot),
     bucket,
   }));
 
-  selected
-    .sort((a, b) => {
-      if (a === "calories") return -1;
-      if (b === "calories") return 1;
-      return 0;
-    })
-    .forEach((key) => {
-      const metric = METRICS[key];
-      const axisMax = metric.axis === "calories" ? calMax : macroMax;
-      drawSeries(ctx, key, metric, axisMax, plot);
-    });
+  selected.forEach((key) => {
+    const metric = METRICS[key];
+    let scale;
+
+    if (metric.axis === "calories") scale = { min: 0, max: calMax };
+    else if (metric.axis === "macros") scale = { min: 0, max: macroMax };
+    else scale = weightScale;
+
+    drawSeries(ctx, key, metric, scale, plot);
+  });
 
   drawXAxisLabels(ctx, plot);
 }
 
-function drawGridAndAxes(ctx, plot, leftAxis, leftMax, rightAxis, rightMax) {
+function drawGridAndAxes(ctx, plot, leftAxis, leftScale, rightAxis, rightScale) {
   const lines = 5;
   ctx.font = "12px system-ui, sans-serif";
   ctx.lineWidth = 1;
@@ -370,43 +439,87 @@ function drawGridAndAxes(ctx, plot, leftAxis, leftMax, rightAxis, rightMax) {
     ctx.fillStyle = "#707887";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillText(axisLabel(leftMax * ratio, leftAxis), plot.x - 9, y);
+    ctx.fillText(
+      axisLabel(scaleValue(leftScale, ratio), leftAxis),
+      plot.x - 9,
+      y
+    );
 
     if (rightAxis) {
       ctx.textAlign = "left";
-      ctx.fillText(axisLabel(rightMax * ratio, rightAxis), plot.x + plot.width + 9, y);
+      ctx.fillText(
+        axisLabel(scaleValue(rightScale, ratio), rightAxis),
+        plot.x + plot.width + 9,
+        y
+      );
     }
   }
 }
 
-function drawSeries(ctx, key, metric, axisMax, plot) {
-  const points = state.buckets.map((bucket, index) => ({
-    x: xForIndex(index, state.buckets.length, plot),
-    y: yForValue(bucket.values[key], axisMax, plot),
-    value: bucket.values[key],
-  }));
+function drawRightAxis(ctx, plot, axis, scale, offset) {
+  const lines = 5;
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.fillStyle = METRICS.weight.stroke;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+
+  for (let i = 0; i <= lines; i++) {
+    const ratio = i / lines;
+    const y = plot.y + plot.height - ratio * plot.height;
+    ctx.fillText(
+      axisLabel(scaleValue(scale, ratio), axis),
+      plot.x + plot.width + 9 + offset,
+      y
+    );
+  }
+}
+
+function scaleValue(scale, ratio) {
+  return scale.min + (scale.max - scale.min) * ratio;
+}
+
+function drawSeries(ctx, key, metric, scale, plot) {
+  const points = state.buckets.map((bucket, index) => {
+    const value = bucket.values[key];
+    return {
+      x: xForIndex(index, state.buckets.length, plot),
+      y: value == null ? null : yForScale(value, scale, plot),
+      value,
+    };
+  });
 
   ctx.strokeStyle = metric.stroke;
   ctx.fillStyle = metric.stroke;
-  ctx.lineWidth = 2.4;
+  ctx.lineWidth = key === "weight" ? 2.8 : 2.4;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-
   ctx.setLineDash(metric.axis === "macros" ? [7, 5] : []);
 
+  let drawing = false;
   ctx.beginPath();
 
-  points.forEach((point, index) => {
-    if (index === 0) ctx.moveTo(point.x, point.y);
-    else ctx.lineTo(point.x, point.y);
+  points.forEach((point) => {
+    if (point.y == null) {
+      drawing = false;
+      return;
+    }
+
+    if (!drawing) {
+      ctx.moveTo(point.x, point.y);
+      drawing = true;
+    } else {
+      ctx.lineTo(point.x, point.y);
+    }
   });
+
   ctx.stroke();
   ctx.setLineDash([]);
 
-  if (points.length <= 45) {
+  if (points.length <= 60) {
     points.forEach((point) => {
+      if (point.y == null) return;
       ctx.beginPath();
-      ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+      ctx.arc(point.x, point.y, key === "weight" ? 3.6 : 3, 0, Math.PI * 2);
       ctx.fill();
     });
   }
@@ -456,8 +569,11 @@ function handleChartHover(event) {
   const selected = [...state.selectedMetrics];
   elements.tooltip.innerHTML = `
     <strong>${escapeHtml(closest.bucket.label)}</strong>
-    ${selected.map((key) => `${METRICS[key].label}: ${formatNumber(closest.bucket.values[key])} ${METRICS[key].unit}`).join("<br>")}
-    <br>${closest.bucket.entries} ${closest.bucket.entries === 1 ? "entry" : "entries"}
+    ${selected.map((key) => {
+      const value = closest.bucket.values[key];
+      return `${METRICS[key].label}: ${value == null ? "—" : `${formatNumber(value)} ${METRICS[key].unit}`}`;
+    }).join("<br>")}
+    <br>${closest.bucket.entries} ${closest.bucket.entries === 1 ? "food entry" : "food entries"}${closest.bucket.weightEntries ? ` · ${closest.bucket.weightEntries} weight` : ""}
   `;
   elements.tooltip.classList.remove("hidden");
 
@@ -543,14 +659,44 @@ function logsForRange(start, endExclusive) {
   return state.logs.filter((log) => log.unix_timestamp >= min && log.unix_timestamp < max);
 }
 
+function weightLogsForRange(start, endExclusive) {
+  const min = start.getTime() / 1000;
+  const max = endExclusive.getTime() / 1000;
+  return state.weightLogs.filter((log) => log.unix_timestamp >= min && log.unix_timestamp < max);
+}
+
 function xForIndex(index, count, plot) {
   if (count <= 1) return plot.x + plot.width / 2;
   return plot.x + (index / (count - 1)) * plot.width;
 }
 
-function yForValue(value, max, plot) {
-  if (!max) return plot.y + plot.height;
-  return plot.y + plot.height - (value / max) * plot.height;
+function yForScale(value, scale, plot) {
+  const span = scale.max - scale.min;
+  if (!span) return plot.y + plot.height / 2;
+  return plot.y + plot.height - ((value - scale.min) / span) * plot.height;
+}
+
+function makeWeightScale(values) {
+  if (!values.length) return { min: 0, max: 1 };
+
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+
+  if (min === max) {
+    const padding = Math.max(0.5, Math.abs(min) * 0.01);
+    return { min: min - padding, max: max + padding };
+  }
+
+  const span = max - min;
+  const padding = Math.max(0.25, span * 0.18);
+  min -= padding;
+  max += padding;
+
+  // round to 0.5 kg steps for readable ticks
+  return {
+    min: Math.floor(min * 2) / 2,
+    max: Math.ceil(max * 2) / 2,
+  };
 }
 
 function niceMax(value) {
@@ -562,6 +708,7 @@ function niceMax(value) {
 }
 
 function axisLabel(value, axis) {
+  if (axis === "weight") return `${Number(value).toFixed(1)}kg`;
   const suffix = axis === "calories" ? "" : "g";
   return `${formatCompactNumber(value)}${suffix}`;
 }
