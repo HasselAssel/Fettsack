@@ -34,11 +34,12 @@
     <section class="panel explanation-panel">
       <strong>How estimates work</strong>
       <p>
-        A tracked container can contain multiple saved foods. Its initial tracked weight is the sum of all ingredient starting weights.
-        Between two checkpoints, the measured weight loss is spread uniformly over time and across ingredients according to their starting proportions.
+        Create a container with its starting food weight, then occasionally enter how many grams remain.
+        Consumption between two measurements is spread uniformly over the elapsed time between them.
+        Daily, weekly, monthly, and graph totals include those estimated grams automatically.
       </p>
       <p class="muted">
-        No intake is extrapolated after the newest checkpoint. Ingredient composition is locked after the first checkpoint because ingredients do not have their own timestamps.
+        No consumption is extrapolated beyond the newest measurement. For your own sake, don't insert a measurement that is heavier than a previous one.
       </p>
     </section>
 
@@ -63,22 +64,29 @@
 
         <form id="container-form" class="form-stack">
           <label>
-            Container name
-            <input id="container-name" type="text" placeholder="e.g. Salad dressing jar" required />
+            Food
+            <select id="container-food-id" required></select>
+          </label>
+
+          <label>
+            Label
+            <input id="container-label" type="text" placeholder="e.g. Olive oil bottle" required />
+          </label>
+
+          <label>
+            Starting measured weight (g)
+            <input id="container-start-grams" type="number" min="0.1" step="0.1" required />
           </label>
 
           <div class="form-row">
-            <label>Start date<input id="container-start-date" type="date" required /></label>
-            <label>Time<input id="container-start-time" type="time" required /></label>
-          </div>
-
-          <div class="ingredient-builder">
-            <div class="ingredient-builder-header">
-              <div><strong>Initial ingredients</strong><div class="muted mini-copy">These weights determine the mixture proportions.</div></div>
-              <button id="add-ingredient-row" class="secondary-button" type="button">+ Ingredient</button>
-            </div>
-            <div id="ingredient-rows" class="ingredient-rows"></div>
-            <div class="ingredient-total">Initial total: <strong id="ingredient-total-grams">0 g</strong></div>
+            <label>
+              Start date
+              <input id="container-start-date" type="date" required />
+            </label>
+            <label>
+              Time
+              <input id="container-start-time" type="time" required />
+            </label>
           </div>
 
           <button class="primary-button" type="submit">Start container</button>

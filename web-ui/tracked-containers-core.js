@@ -1,31 +1,25 @@
 (() => {
-  class FoodTrackedContainer {
+  class TrackedContainer {
     constructor(row = {}) {
       this.tracked_container_id = row.tracked_container_id ?? null;
-      this.food_id = row.food_id ?? null;
+      this.name = row.name ?? "";
       this.start_unix_timestamp = Number(row.start_unix_timestamp ?? 0);
-      this.start_grams = Number(row.start_grams ?? 0);
-      this.label = row.label ?? "";
     }
-
     toApiPayload() {
       return {
-        food_id: this.food_id,
+        name: this.name,
         start_unix_timestamp: this.start_unix_timestamp,
-        start_grams: this.start_grams,
-        label: this.label || null,
       };
     }
   }
 
-  class FoodTrackedContainerLog {
+  class TrackedContainerLog {
     constructor(row = {}) {
       this.tracked_container_log_id = row.tracked_container_log_id ?? null;
       this.tracked_container_id = row.tracked_container_id ?? null;
       this.unix_timestamp = Number(row.unix_timestamp ?? 0);
       this.grams_remaining = Number(row.grams_remaining ?? 0);
     }
-
     toApiPayload() {
       return {
         tracked_container_id: this.tracked_container_id,
@@ -35,31 +29,64 @@
     }
   }
 
-  function logsForContainer(containerId, logs) {
-    return logs
-      .filter((log) => Number(log.tracked_container_id) === Number(containerId))
-      .slice()
-      .sort((a, b) => a.unix_timestamp - b.unix_timestamp);
+  class TrackedContainerIngredient {
+    constructor(row = {}) {
+      // The current Go JSON tag uses a capital T. Accept both variants on reads.
+      this.tracked_container_ingredient_id =
+        row.Tracked_container_ingredient_id ?? row.tracked_container_ingredient_id ?? null;
+      this.tracked_container_id = row.tracked_container_id ?? null;
+      this.food_id = row.food_id ?? null;
+      this.grams_start = Number(row.grams_start ?? 0);
+    }
+    toApiPayload() {
+      return {
+        tracked_container_id: this.tracked_container_id,
+        food_id: this.food_id,
+        grams_start: this.grams_start,
+      };
+    }
   }
 
-  function intervalsForContainer(container, logs) {
+  function logsForContainer(containerId, logs) {
+    return logs.filter((x) => Number(x.tracked_container_id) === Number(containerId))
+      .slice().sort((a,b) => a.unix_timestamp - b.unix_timestamp);
+  }
+
+  function ingredientsForContainer(containerId, ingredients) {
+    return ingredients.filter((x) => Number(x.tracked_container_id) === Number(containerId));
+  }
+
+  function initialWeightForContainer(container, ingredients) {
+    return ingredientsForContainer(container.tracked_container_id, ingredients)
+      .reduce((sum, x) => sum + Math.max(0, Number(x.grams_start || 0)), 0);
+  }
+
+  function ingredientShares(container, ingredients) {
+    const list = ingredientsForContainer(container.tracked_container_id, ingredients)
+      .filter((x) => x.grams_start > 0);
+    const total = list.reduce((sum,x) => sum + x.grams_start, 0);
+    if (total <= 0) return [];
+    return list.map((x) => ({ ingredient: x, share: x.grams_start / total }));
+  }
+
+  function intervalsForContainer(container, logs, ingredients) {
+    const initialGrams = initialWeightForContainer(container, ingredients);
+    if (initialGrams <= 0) return [];
+
     const measurements = logsForContainer(container.tracked_container_id, logs)
       .filter((log) => log.unix_timestamp > container.start_unix_timestamp);
 
     const intervals = [];
     let previousTimestamp = container.start_unix_timestamp;
-    let previousGrams = container.start_grams;
+    let previousGrams = initialGrams;
 
     for (const measurement of measurements) {
       const durationSeconds = measurement.unix_timestamp - previousTimestamp;
       if (durationSeconds <= 0) continue;
-
       const rawDifference = previousGrams - measurement.grams_remaining;
-
       intervals.push({
         tracked_container_id: container.tracked_container_id,
-        food_id: container.food_id,
-        label: container.label,
+        name: container.name,
         start_unix_timestamp: previousTimestamp,
         end_unix_timestamp: measurement.unix_timestamp,
         start_grams: previousGrams,
@@ -69,71 +96,86 @@
         duration_seconds: durationSeconds,
         end_log_id: measurement.tracked_container_log_id,
       });
-
       previousTimestamp = measurement.unix_timestamp;
       previousGrams = measurement.grams_remaining;
     }
-
     return intervals;
   }
 
-  function allIntervals(containers, logs) {
-    return containers.flatMap((container) => intervalsForContainer(container, logs));
+  function allIntervals(containers, logs, ingredients) {
+    return containers.flatMap((c) => intervalsForContainer(c, logs, ingredients));
   }
 
-  // Consumption is assumed uniform between two known measurements.
-  // The overlap calculation automatically gives each calendar day its fair
-  // share, including partial first/last days and DST transitions.
-  function estimatedEntriesForRange(containers, logs, startDate, endDateExclusive) {
+  // Assumption: the contents remain mixed in the same ingredient proportions.
+  // Total mass lost in an interval is first apportioned by time overlap, then by
+  // each ingredient's starting mass fraction. This preserves both total grams
+  // and total nutrition exactly across arbitrary day/week/month ranges.
+  function estimatedEntriesForRange(containers, logs, ingredients, startDate, endDateExclusive) {
     const rangeStart = startDate.getTime() / 1000;
     const rangeEnd = endDateExclusive.getTime() / 1000;
     const result = [];
 
-    for (const interval of allIntervals(containers, logs)) {
-      if (interval.consumed_grams <= 0) continue;
+    for (const container of containers) {
+      const shares = ingredientShares(container, ingredients);
+      if (!shares.length) continue;
 
-      const overlapStart = Math.max(rangeStart, interval.start_unix_timestamp);
-      const overlapEnd = Math.min(rangeEnd, interval.end_unix_timestamp);
-      if (overlapEnd <= overlapStart) continue;
+      for (const interval of intervalsForContainer(container, logs, ingredients)) {
+        if (interval.consumed_grams <= 0) continue;
+        const overlapStart = Math.max(rangeStart, interval.start_unix_timestamp);
+        const overlapEnd = Math.min(rangeEnd, interval.end_unix_timestamp);
+        if (overlapEnd <= overlapStart) continue;
 
-      const fraction = (overlapEnd - overlapStart) / interval.duration_seconds;
-      const grams = interval.consumed_grams * fraction;
+        const timeFraction = (overlapEnd - overlapStart) / interval.duration_seconds;
+        const consumedInRange = interval.consumed_grams * timeFraction;
 
-      result.push({
-        estimated: true,
-        tracked_container_id: interval.tracked_container_id,
-        food_id: interval.food_id,
-        label: interval.label,
-        grams,
-        interval_start_unix_timestamp: interval.start_unix_timestamp,
-        interval_end_unix_timestamp: interval.end_unix_timestamp,
-        overlap_start_unix_timestamp: overlapStart,
-        overlap_end_unix_timestamp: overlapEnd,
-      });
+        for (const { ingredient, share } of shares) {
+          result.push({
+            estimated: true,
+            tracked_container_id: container.tracked_container_id,
+            tracked_container_ingredient_id: ingredient.tracked_container_ingredient_id,
+            container_name: container.name,
+            food_id: ingredient.food_id,
+            grams: consumedInRange * share,
+            ingredient_share: share,
+            interval_start_unix_timestamp: interval.start_unix_timestamp,
+            interval_end_unix_timestamp: interval.end_unix_timestamp,
+            overlap_start_unix_timestamp: overlapStart,
+            overlap_end_unix_timestamp: overlapEnd,
+          });
+        }
+      }
     }
-
     return result;
   }
 
-  function statusForContainer(container, logs) {
+  function statusForContainer(container, logs, ingredients) {
     const containerLogs = logsForContainer(container.tracked_container_id, logs);
-    const intervals = intervalsForContainer(container, logs);
+    const intervals = intervalsForContainer(container, logs, ingredients);
+    const initial = initialWeightForContainer(container, ingredients);
     const latest = containerLogs.length ? containerLogs[containerLogs.length - 1] : null;
-
     return {
-      current_grams: latest ? latest.grams_remaining : container.start_grams,
+      initial_grams: initial,
+      current_grams: latest ? latest.grams_remaining : initial,
       latest_unix_timestamp: latest ? latest.unix_timestamp : container.start_unix_timestamp,
       measurements: containerLogs.length,
-      measured_consumed_grams: intervals.reduce((sum, i) => sum + i.consumed_grams, 0),
-      weight_increase_grams: intervals.reduce((sum, i) => sum + i.weight_increase_grams, 0),
+      ingredient_count: ingredientsForContainer(container.tracked_container_id, ingredients).length,
+      measured_consumed_grams: intervals.reduce((sum,i) => sum + i.consumed_grams, 0),
+      weight_increase_grams: intervals.reduce((sum,i) => sum + i.weight_increase_grams, 0),
       warning_intervals: intervals.filter((i) => i.weight_increase_grams > 0).length,
     };
   }
 
   window.TrackedContainers = {
-    FoodTrackedContainer,
-    FoodTrackedContainerLog,
+    TrackedContainer,
+    TrackedContainerLog,
+    TrackedContainerIngredient,
+    // compatibility aliases for code from the previous frontend version
+    FoodTrackedContainer: TrackedContainer,
+    FoodTrackedContainerLog: TrackedContainerLog,
     logsForContainer,
+    ingredientsForContainer,
+    initialWeightForContainer,
+    ingredientShares,
     intervalsForContainer,
     allIntervals,
     estimatedEntriesForRange,

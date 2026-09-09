@@ -35,13 +35,16 @@ func main() {
 
 	mux.HandleFunc("GET /api/v1/food/food", api.GetFoods)
 	mux.HandleFunc("GET /api/v1/food/log", api.GetFoodLogs)
-	mux.HandleFunc("GET /api/v1/food/tracked-container/tracked-container", api.GetTrackedFoodContainers)
-	mux.HandleFunc("GET /api/v1/food/tracked-container/log", api.GetTrackedFoodContainerLogs)
+	mux.HandleFunc("GET /api/v1/food/tracked-container/tracked-container", api.GetTrackedContainers)
+	mux.HandleFunc("GET /api/v1/food/tracked-container/log", api.GetTrackedContainerLogs)
+	mux.HandleFunc("GET /api/v1/food/tracked-container/ingredient", api.GetTrackedContainerIngredients)
 
-	mux.HandleFunc("POST /api/v1/food/tracked-container/tracked-container", api.AddTrackedFoodContainer)
-	mux.HandleFunc("DELETE /api/v1/food/tracked-container/tracked-container", api.RemoveTrackedFoodContainer)
-	mux.HandleFunc("POST /api/v1/food/tracked-container/log", api.AddTrackedFoodContainerLog)
-	mux.HandleFunc("DELETE /api/v1/food/tracked-container/log", api.RemoveTrackedFoodContainerLog)
+	mux.HandleFunc("POST /api/v1/food/tracked-container/tracked-container", api.AddTrackedContainer)
+	mux.HandleFunc("DELETE /api/v1/food/tracked-container/tracked-container", api.RemoveTrackedContainer)
+	mux.HandleFunc("POST /api/v1/food/tracked-container/ingredient", api.AddTrackedContainerIngredient)
+	mux.HandleFunc("DELETE /api/v1/food/tracked-container/ingredient", api.RemoveTrackedContainerIngredient)
+	mux.HandleFunc("POST /api/v1/food/tracked-container/log", api.AddTrackedContainerLog)
+	mux.HandleFunc("DELETE /api/v1/food/tracked-container/log", api.RemoveTrackedContainerLog)
 
 	mux.HandleFunc("POST /api/v1/weight/log", api.AddWeightLog)
 	mux.HandleFunc("DELETE /api/v1/weight/log", api.RemoveWeightLog)
