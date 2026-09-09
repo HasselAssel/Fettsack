@@ -4,7 +4,6 @@ const API = {
   foodAndLog: '/api/v1/food/food-and-log',
   trackedContainers: '/api/v1/food/tracked-container/tracked-container',
   trackedContainerLogs: '/api/v1/food/tracked-container/log',
-  trackedContainerIngredients: '/api/v1/food/tracked-container/ingredient',
 }
 class Food {
   constructor({
@@ -63,7 +62,6 @@ const state = {
   logs: [],
   trackedContainers: [],
   trackedContainerLogs: [],
-  trackedContainerIngredients: [],
   selectedDate: startOfLocalDay(new Date()),
   selectedWeek: startOfWeek(new Date()),
   selectedMonth: startOfMonth(new Date()),
@@ -76,6 +74,10 @@ const api = {
       headers: {
         ...(options.headers || {}),
         'Content-Type': 'application/json',
+        'Remote-User': 'TestUser',
+        'Remote-Email': 'TestUser@Test.test',
+        'Remote-Name': 'TestUserName',
+        'Remote-Groups': 'TestGroup1, TestGroup2'
       },
     })
     if (!r.ok) {
@@ -105,9 +107,6 @@ const api = {
   },
   getTrackedContainerLogs() {
     return this.request(API.trackedContainerLogs)
-  },
-  getTrackedContainerIngredients() {
-    return this.request(API.trackedContainerIngredients)
   },
   addFood(food) {
     return this.request(API.foods, {
@@ -230,23 +229,19 @@ function bindEvents() {
   elements.monthDays.addEventListener('click', handlePeriodDayClick)
 }
 async function refreshData() {
-  const [f, l, containers, containerLogs, containerIngredients] = await Promise.all([
+  const [f, l, containers, containerLogs] = await Promise.all([
     api.getFoods(),
     api.getLogs(),
     api.getTrackedContainers(),
     api.getTrackedContainerLogs(),
-    api.getTrackedContainerIngredients(),
   ])
   state.foods = (f ?? []).map((x) => new Food(x))
   state.logs = (l ?? []).map((x) => new FoodLog(x))
   state.trackedContainers = (containers ?? []).map(
-    (x) => new window.TrackedContainers.TrackedContainer(x)
+    (x) => new window.TrackedContainers.FoodTrackedContainer(x)
   )
   state.trackedContainerLogs = (containerLogs ?? []).map(
-    (x) => new window.TrackedContainers.TrackedContainerLog(x)
-  )
-  state.trackedContainerIngredients = (containerIngredients ?? []).map(
-    (x) => new window.TrackedContainers.TrackedContainerIngredient(x)
+    (x) => new window.TrackedContainers.FoodTrackedContainerLog(x)
   )
   renderAll()
 }
@@ -356,26 +351,23 @@ function renderDay() {
   const estimatedByContainer = new Map()
   for (const entry of estimates) {
     const key = Number(entry.tracked_container_id)
-    const group = estimatedByContainer.get(key) ?? {
-      tracked_container_id: key,
-      container_name: entry.container_name,
-      entries: [],
-      grams: 0,
-    }
-    group.entries.push(entry)
-    group.grams += entry.grams
-    estimatedByContainer.set(key, group)
+    const current = estimatedByContainer.get(key) ?? { ...entry, grams: 0 }
+    current.grams += entry.grams
+    estimatedByContainer.set(key, current)
   }
 
-  const estimatedRows = [...estimatedByContainer.values()].map((group) => {
-    const n = totalsForEstimatedEntries(group.entries)
-    const ingredientNames = [...new Set(group.entries.map((entry) => findFood(entry.food_id)?.name).filter(Boolean))]
-    return `<article class="log-row estimated-log-row"><div class="log-main"><strong>${escapeHtml(
-      group.container_name || 'Tracked container'
-    )}</strong><div class="meta"><span class="estimated-badge">Estimated container</span><span>${formatNumber(
-      group.grams
-    )} g total</span><span>${formatNumber(n.calories)} kcal</span>${ingredientNames.length ? `<span>${escapeHtml(ingredientNames.join(', '))}</span>` : ''}</div></div><div class="row-actions"><a class="small-link" href="containers.html">Container</a></div></article>`
+  const estimatedRows = [...estimatedByContainer.values()].map((entry) => {
+    const f = findFood(entry.food_id)
+    const n = f ? nutritionForLog(f, entry.grams) : null
+    return `<article class="log-row estimated-log-row"><div class="log-main"><strong>${
+      f ? escapeHtml(f.name) : `Food #${entry.food_id}`
+    }</strong><div class="meta"><span class="estimated-badge">Estimated · ${escapeHtml(
+      entry.label || 'tracked container'
+    )}</span><span>${formatNumber(entry.grams)} g</span>${
+      n ? `<span>${formatNumber(n.calories)} kcal</span>` : ''
+    }</div></div><div class="row-actions"><a class="small-link" href="containers.html">Container</a></div></article>`
   })
+
   const rows = [...regularRows, ...estimatedRows]
   elements.dayLogList.innerHTML = rows.length
     ? rows.join('')
@@ -636,7 +628,6 @@ function estimatedContainerEntriesForRange(start, end) {
   return window.TrackedContainers.estimatedEntriesForRange(
     state.trackedContainers,
     state.trackedContainerLogs,
-    state.trackedContainerIngredients,
     start,
     end
   )

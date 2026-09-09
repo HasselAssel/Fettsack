@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="icon/favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Tracker · Graphs</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="analytics.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Food Tracker</h1>
+      <p class="muted">Intake graphs and trends.</p>
+    </div>
+
+    <nav class="tabs" aria-label="Main navigation">
+      <a class="tab-link" href="index.html">Tracker</a>
+      <a class="tab-link active-link" href="analytics.html">Graphs</a>
+      <a class="tab-link" href="weight.html">Weight</a>
+      <a class="tab-link" href="containers.html">Containers</a>
+    </nav>
+  </header>
+
+  <main class="app-shell analytics-shell">
+    <div class="page-header analytics-header">
+      <div>
+        <h2>Intake graphs</h2>
+        <p class="muted">Choose a period and compare metrics.</p>
+      </div>
+    </div>
+
+    <section class="panel controls-panel">
+      <div class="control-group period-group">
+        <div class="control-label">Period</div>
+        <div class="date-range">
+          <label>
+            From
+            <input id="start-date" type="date" />
+          </label>
+          <span class="range-separator">→</span>
+          <label>
+            To
+            <input id="end-date" type="date" />
+          </label>
+        </div>
+        <div class="preset-row">
+          <button class="preset-button" type="button" data-days="7">7 days</button>
+          <button class="preset-button active" type="button" data-days="30">30 days</button>
+          <button class="preset-button" type="button" data-days="90">90 days</button>
+          <button class="preset-button" type="button" data-preset="ytd">YTD</button>
+        </div>
+      </div>
+
+      <div class="control-divider"></div>
+
+      <div class="control-group">
+        <div class="control-label">Show</div>
+        <div class="metric-toggles">
+          <label class="metric-toggle metric-calories">
+            <input type="checkbox" value="calories" checked />
+            <span>Calories</span>
+          </label>
+          <label class="metric-toggle metric-protein">
+            <input type="checkbox" value="protein" checked />
+            <span>Protein</span>
+          </label>
+          <label class="metric-toggle metric-carbs">
+            <input type="checkbox" value="carbs" />
+            <span>Carbs</span>
+          </label>
+          <label class="metric-toggle metric-fat">
+            <input type="checkbox" value="fat" />
+            <span>Fat</span>
+          </label>
+          <label class="metric-toggle metric-weight">
+            <input type="checkbox" value="weight" />
+            <span>Weight</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="control-divider"></div>
+
+      <div class="control-group aggregation-group">
+        <label>
+          Group by
+          <select id="aggregation">
+            <option value="auto">Automatic</option>
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section id="summary-cards" class="graph-summary"></section>
+
+    <section class="panel graph-panel">
+      <div class="panel-header graph-panel-header">
+        <div>
+          <h3 id="graph-title">Daily intake</h3>
+          <p class="muted" id="graph-subtitle">Loading your data…</p>
+        </div>
+        <div id="legend" class="graph-legend"></div>
+      </div>
+
+      <div id="chart-wrap" class="chart-wrap">
+        <canvas id="intake-chart"></canvas>
+        <div id="chart-tooltip" class="chart-tooltip hidden"></div>
+        <div id="chart-empty" class="chart-empty hidden">No intake data in this period.</div>
+      </div>
+    </section>
+
+    <section class="panel details-panel">
+      <div class="panel-header">
+        <div>
+          <h3>Period breakdown</h3>
+          <p class="muted">All your metrics in one place.</p>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="breakdown-table">
+          <thead id="breakdown-head"></thead>
+          <tbody id="breakdown-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="tracked-containers-core.js"></script>
+  <script src="analytics.js"></script>
+</body>
+</html>

@@ -4,7 +4,6 @@ const API = {
   weightLogs: "/api/v1/weight/log",
   trackedContainers: "/api/v1/food/tracked-container/tracked-container",
   trackedContainerLogs: "/api/v1/food/tracked-container/log",
-  trackedContainerIngredients: "/api/v1/food/tracked-container/ingredient",
 };
 
 const METRICS = {
@@ -79,7 +78,6 @@ const api = {
   getWeightLogs() { return this.request(API.weightLogs); },
   getTrackedContainers() { return this.request(API.trackedContainers); },
   getTrackedContainerLogs() { return this.request(API.trackedContainerLogs); },
-  getTrackedContainerIngredients() { return this.request(API.trackedContainerIngredients); },
 };
 
 const state = {
@@ -88,7 +86,6 @@ const state = {
   weightLogs: [],
   trackedContainers: [],
   trackedContainerLogs: [],
-  trackedContainerIngredients: [],
   buckets: [],
   selectedMetrics: new Set(["calories", "protein"]),
   aggregation: "auto",
@@ -126,25 +123,21 @@ async function init() {
   applyPresetDays(30);
 
   try {
-    const [foodRows, logRows, weightRows, containerRows, containerLogRows, containerIngredientRows] = await Promise.all([
+    const [foodRows, logRows, weightRows, containerRows, containerLogRows] = await Promise.all([
       api.getFoods(),
       api.getLogs(),
       api.getWeightLogs(),
       api.getTrackedContainers(),
       api.getTrackedContainerLogs(),
-      api.getTrackedContainerIngredients(),
     ]);
     state.foods = (foodRows ?? []).map((row) => new Food(row));
     state.logs = (logRows ?? []).map((row) => new FoodLog(row));
     state.weightLogs = (weightRows ?? []).map((row) => new WeightLog(row));
     state.trackedContainers = (containerRows ?? []).map(
-      (row) => new window.TrackedContainers.TrackedContainer(row)
+      (row) => new window.TrackedContainers.FoodTrackedContainer(row)
     );
     state.trackedContainerLogs = (containerLogRows ?? []).map(
-      (row) => new window.TrackedContainers.TrackedContainerLog(row)
-    );
-    state.trackedContainerIngredients = (containerIngredientRows ?? []).map(
-      (row) => new window.TrackedContainers.TrackedContainerIngredient(row)
+      (row) => new window.TrackedContainers.FoodTrackedContainerLog(row)
     );
     render();
   } catch (error) {
@@ -681,7 +674,6 @@ function estimatedContainerEntriesForRange(start, endExclusive) {
   return window.TrackedContainers.estimatedEntriesForRange(
     state.trackedContainers,
     state.trackedContainerLogs,
-    state.trackedContainerIngredients,
     start,
     endExclusive
   );

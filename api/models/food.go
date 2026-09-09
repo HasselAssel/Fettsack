@@ -29,24 +29,3 @@ type FoodAndLog struct {
 	Food *Food    `json:"food"`
 	Log  *FoodLog `json:"log"`
 }
-
-type FoodTrackedContainerId struct {
-	Tracked_container_id *int64 `json:"tracked_container_id"`
-}
-
-type FoodTrackedContainer struct {
-	FoodId
-	Started_at   *int64   `json:"start_unix_timestamp"`
-	Start_weight *float64 `json:"start_grams"`
-	Label        *string  `json:"label"`
-}
-
-type FoodTrackedContainerLogId struct {
-	Tracked_container_log_id *int64 `json:"tracked_container_log_id"`
-}
-
-type FoodTrackedContainerLog struct {
-	FoodTrackedContainerId
-	Timestamp       *int64   `json:"unix_timestamp"`
-	Grams_remaining *float64 `json:"grams_remaining"`
-}
