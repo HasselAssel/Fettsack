@@ -4,10 +4,6 @@ type FoodId struct {
 	Food_id *int64 `json:"food_id"`
 }
 
-type FoodLogId struct {
-	Log_id *int64 `json:"log_id"`
-}
-
 type Food struct {
 	Name    *string `json:"name"`
 	Brand   *string `json:"brand"`
@@ -17,6 +13,10 @@ type Food struct {
 	Protein  *float64 `json:"protein"`
 	Fat      *float64 `json:"fat"`
 	Carbs    *float64 `json:"carbs"`
+}
+
+type FoodLogId struct {
+	Log_id *int64 `json:"log_id"`
 }
 
 type FoodLog struct {

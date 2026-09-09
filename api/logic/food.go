@@ -52,7 +52,7 @@ func EnsureFoodTables(db *sql.DB) error {
 			UNIQUE (user, food_id)
 		);
 
-		CREATE TABLE IF NOT EXISTS food_log (
+		CREATE TABLE IF NOT EXISTS food_logs (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 
 			user TEXT NOT NULL,
@@ -62,33 +62,6 @@ func EnsureFoodTables(db *sql.DB) error {
 			grams REAL NOT NULL CHECK (grams > 0),
 
 			FOREIGN KEY (food_id) REFERENCES foods(id)
-		);
-
-		CREATE TABLE IF NOT EXISTS tracked_food_containers (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-			user TEXT NOT NULL,
-			food_id INTEGER NOT NULL,
-
-			started_at INTEGER NOT NULL DEFAULT (unixepoch()),
-			start_weight REAL NOT NULL CHECK (start_weight > 0),
-
-			label TEXT,
-
-			FOREIGN KEY (food_id) REFERENCES foods(id)
-		);
-
-		CREATE TABLE IF NOT EXISTS tracked_food_measurements (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-			container_id INTEGER NOT NULL,
-			timestamp INTEGER NOT NULL DEFAULT (unixepoch()),
-
-			grams_remaining REAL NOT NULL CHECK (grams_remaining >= 0),
-
-			FOREIGN KEY (container_id)
-				REFERENCES tracked_food_containers(id)
-				ON DELETE CASCADE
 		);
 	`)
 	if err != nil {
@@ -170,7 +143,7 @@ func GetFoodLogsFromDB(db *sql.DB, user models.User) ([]struct {
 			food_id,
 			timestamp,
 			grams
-		FROM food_log
+		FROM food_logs
 		WHERE user = ?
 	`, user.User)
 	if err != nil {
@@ -273,9 +246,12 @@ func RemoveFoodFromDB(db *sql.DB, payload models.FoodId, user models.User) error
 		`
 		DELETE FROM food_owners
 		WHERE food_id = ? AND user = ? AND NOT EXISTS (
-			SELECT 1 FROM food_log WHERE food_id = ? AND user = ?
+			SELECT 1 FROM food_logs WHERE food_id = ? AND user = ?
 		)
-	`, payload.Food_id, user.User, payload.Food_id, user.User)
+		AND NOT EXISTS (
+			SELECT 1 FROM tracked_food_containers WHERE food_id = ? AND user = ?
+		)
+	`, payload.Food_id, user.User, payload.Food_id, user.User, payload.Food_id, user.User)
 	if err != nil {
 		return err
 	}
@@ -294,7 +270,7 @@ func RemoveFoodFromDB(db *sql.DB, payload models.FoodId, user models.User) error
 
 func AddFoodLogToDB(db *sql.DB, payload models.FoodLog, user models.User) (int64, error) {
 	result, err := db.Exec(`
-		INSERT INTO food_log (
+		INSERT INTO food_logs (
 			user,
 			timestamp,
 			food_id,
@@ -333,7 +309,7 @@ func AddFoodLogToDB(db *sql.DB, payload models.FoodLog, user models.User) (int64
 func RemoveFoodLogFromDB(db *sql.DB, payload models.FoodLogId, user models.User) error {
 	result, err := db.Exec(
 		`
-		DELETE FROM food_log
+		DELETE FROM food_logs
 		WHERE id = ? AND user = ?
 	`, payload.Log_id, user.User)
 	if err != nil {
@@ -351,39 +327,3 @@ func RemoveFoodLogFromDB(db *sql.DB, payload models.FoodLogId, user models.User)
 
 	return nil
 }
-
-/*_, err := db.Exec(`
-	CREATE TABLE IF NOT EXISTS recipes (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL
-		UNIQUE (name)
-	);
-`)
-if err != nil {
-	return err
-}
-_, err := db.Exec(`
-	CREATE TABLE IF NOT EXISTS recipe_items (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-		recipe_id INTEGER NOT NULL,
-
-		ingredients_id INTEGER,
-		child_recipe_id INTEGER,
-
-		FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
-		FOREIGN KEY (ingredients_id) REFERENCES ingredients(id),
-		FOREIGN KEY (child_recipe_id) REFERENCES recipes(id),
-
-		CHECK (
-			(ingredients_id IS NOT NULL AND child_recipe_id IS NULL)
-			OR
-			(ingredients_id IS NULL AND child_recipe_id IS NOT NULL)
-		),
-
-		UNIQUE (recipe_id, ingredients_id, child_recipe_id)
-	);
-`)
-if err != nil {
-	return err
-}*/

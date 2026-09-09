@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="icon/favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Tracker · Containers</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="containers.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Food Tracker</h1>
+      <p class="muted">Track foods by weighing the container over time.</p>
+    </div>
+
+    <nav class="tabs" aria-label="Main navigation">
+      <a class="tab-link" href="index.html">Tracker</a>
+      <a class="tab-link" href="analytics.html">Graphs</a>
+      <a class="tab-link" href="weight.html">Weight</a>
+      <a class="tab-link active-link" href="containers.html">Containers</a>
+    </nav>
+  </header>
+
+  <main class="app-shell containers-shell">
+    <div class="page-header">
+      <div>
+        <h2>Tracked containers</h2>
+        <p class="muted">For oils, spreads, sauces, powders, and other foods that are easier to track over a longer time.</p>
+      </div>
+    </div>
+
+    <section class="panel explanation-panel">
+      <strong>How estimates work</strong>
+      <p>
+        A tracked container can contain multiple saved foods. Its initial tracked weight is the sum of all ingredient starting weights.
+        Between two checkpoints, the measured weight loss is spread uniformly over time and across ingredients according to their starting proportions.
+      </p>
+      <p class="muted">
+        No intake is extrapolated after the newest checkpoint. Ingredient composition is locked after the first checkpoint because ingredients do not have their own timestamps.
+      </p>
+    </section>
+
+    <div class="containers-layout">
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Your containers</h3>
+            <p class="muted">Add checkpoints to a container.</p>
+          </div>
+        </div>
+        <div id="containers-list" class="containers-list"></div>
+      </section>
+
+      <aside class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Start tracking a container</h3>
+            <p class="muted">Use the same weighing convention for every checkpoint. Container/tare weight cancels out in the differences.</p>
+          </div>
+        </div>
+
+        <form id="container-form" class="form-stack">
+          <label>
+            Container name
+            <input id="container-name" type="text" placeholder="e.g. Salad dressing jar" required />
+          </label>
+
+          <div class="form-row">
+            <label>Start date<input id="container-start-date" type="date" required /></label>
+            <label>Time<input id="container-start-time" type="time" required /></label>
+          </div>
+
+          <div class="ingredient-builder">
+            <div class="ingredient-builder-header">
+              <div><strong>Initial ingredients</strong><div class="muted mini-copy">These weights determine the mixture proportions.</div></div>
+              <button id="add-ingredient-row" class="secondary-button" type="button">+ Ingredient</button>
+            </div>
+            <div id="ingredient-rows" class="ingredient-rows"></div>
+            <div class="ingredient-total">Initial total: <strong id="ingredient-total-grams">0 g</strong></div>
+          </div>
+
+          <button class="primary-button" type="submit">Start container</button>
+        </form>
+      </aside>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="tracked-containers-core.js"></script>
+  <script src="containers.js"></script>
+</body>
+</html>
